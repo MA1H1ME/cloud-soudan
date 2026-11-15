@@ -1,0 +1,63 @@
+# 仕様書「13. 最初のシナリオ3本」シナリオ2
+# 状態：下書き（公式ドキュメントとは未照合）
+# 照合が必要な事実：
+#   - マルチAZ配置の複製方式（同期）と自動フェイルオーバー、切り替えにかかる時間の目安
+#   - リードレプリカの複製方式（非同期）と昇格の手順（手動）
+#   - 自動バックアップからの復元の仕組み（新しいDBインスタンスを作る）
+id: kashiwagi-01
+kind: story
+customerId: kashiwagi
+chapter: 1
+title: 止まるのは怖い。でも固定費はもっと怖い
+weights: { security: 0.10, reliability: 0.20, performance: 0.10, cost: 0.45, operations: 0.15 }
+intros:
+  - lines:
+      - { speaker: customer, text: '通販を始めて3か月。おかげさまで注文は1日20件ほどです' }
+      - { speaker: customer, text: '知り合いの店が、データベースの故障で丸一日注文を取れなかったと聞きましてね。うちは大丈夫かと' }
+      - { speaker: customer, text: '正直、今は利益がほとんど出ていない。半日くらい止まっても、電話で謝れば済む規模です。注文の記録だけは消えたら困りますが' }
+decisions:
+  - id: db
+    conceptId: rds-multiaz-vs-read-replica
+    prompt: データベースの構成をどうする？
+    hint: 柏木さんが守りたいのは「止まらないこと」？ それとも「記録」？
+    examPoint: 「高可用性」「自動フェイルオーバー」ならマルチAZ、「読み取り性能」ならリードレプリカ。この2つを入れ替えた選択肢が誤答として置かれる。
+    options:
+      - id: single-az
+        label: シングルAZのまま、自動バックアップで備える
+        services: [rds, rds-backup]
+        scores: { security: 3, reliability: 2, performance: 3, cost: 5, operations: 3 }
+        setFlags: { kashiwagi.db: single-az }
+        reaction:
+          - { speaker: customer, mood: happy, text: '記録が戻せるなら十分。止まったら謝りますよ' }
+        explanation: 自動バックアップがあれば、保持期間内の時点にデータを復元できます。復元は新しいDBインスタンスを作る作業で、その間サイトは止まります。
+      - id: multi-az
+        label: マルチAZ配置にする
+        services: [rds, rds-multi-az]
+        scores: { security: 3, reliability: 4, performance: 3, cost: 3, operations: 4 }
+        setFlags: { kashiwagi.db: multi-az }
+        reaction:
+          - { speaker: customer, text: '安心ですが…データベース代が増えるのは痛いなあ' }
+        explanation: 別のAZに待機系を持ち、同期的に複製します。障害時は自動で待機系に切り替わります。待機系の分だけ費用が増えます。
+      - id: read-replica
+        label: 別のAZにリードレプリカを追加する
+        services: [rds, rds-read-replica]
+        scores: { security: 3, reliability: 3, performance: 4, cost: 3, operations: 2 }
+        misconception: read-replica-failover
+        setFlags: { kashiwagi.db: read-replica }
+        reaction:
+          - { speaker: customer, text: '予備があるなら安心だ。…故障したら勝手に切り替わるんですよね？' }
+        explanation: リードレプリカは読み取りの負荷を分散するためのもので、複製は非同期です。障害時に自動では切り替わらず、昇格は手動の操作になります。
+      - id: multi-az-web
+        label: マルチAZにし、Webサーバーも2つのAZに増やす
+        services: [rds, rds-multi-az, alb, ec2]
+        scores: { security: 3, reliability: 5, performance: 4, cost: 1, operations: 4 }
+        setFlags: { kashiwagi.db: multi-az-web }
+        reaction:
+          - { speaker: customer, mood: troubled, text: 'うちはまだそこまでの店じゃないですよ' }
+        explanation: 可用性は最も高くなりますが、今の柏木さんには費用が見合いません。「止まると困る」お客さんなら最適になります。
+outro:
+  - { speaker: senpai, text: '優先度が違えば答えも変わる。止まると困るお客さんなら、Webサーバーまで冗長化した構成が最適だよ' }
+unlocks: []
+sources: []
+review:
+  status: draft
