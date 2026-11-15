@@ -1,0 +1,45 @@
+# 柏木さん（洋菓子店の通販）の運用シム。仕様書16章
+# 金額・訪問数・処理能力はすべてゲーム内の値。
+customerId: kashiwagi
+profitPerVisit: 8
+start:
+  slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }
+  backup: true
+  autoScaling: false
+comments:
+  best: 予算も守れて、お客さんにも迷惑をかけなかった。この調子でお願いします
+  good: おおむね満足です。ただ、気になる点が1つありました
+  fair: 正直、今月は不安でした。来月は手を打ってもらえますか
+  fail: これでは店を任せられません。早急に見直してください
+months:
+  - month: 1
+    visitsPerDay: 800
+    budget: 30000
+    uptimeTarget: 0.98
+    brief: 通販を始めて3か月。利益はまだ薄いので、固定費は抑えたい。半日くらい止まっても電話で謝れば済みます。注文の記録だけは消さないでください
+    events:
+      - { day: 10, type: spike, label: 週末セール, factor: 2, days: 2 }
+      - { day: 18, type: db-failure, label: データベースの障害 }
+  - month: 2
+    visitsPerDay: 1100
+    budget: 40000
+    uptimeTarget: 0.98
+    brief: 雑誌に載ってから、お客さんが増えてきました。来月は母の日フェアを3日間やります。重くて買えない、というのだけは避けたい
+    events:
+      - { day: 12, type: spike, label: 母の日フェア, factor: 2.2, days: 3 }
+  - month: 3
+    visitsPerDay: 1400
+    budget: 50000
+    uptimeTarget: 0.995
+    brief: もう電話で謝って済む規模ではなくなりました。止めないことを最優先にしてください。20日にはテレビで紹介される予定です
+    events:
+      - { day: 8, type: az-outage, label: AZ-a の障害 }
+      - { day: 20, type: spike, label: テレビで紹介, factor: 3, days: 2 }
+  - month: 4
+    visitsPerDay: 1800
+    budget: 65000
+    uptimeTarget: 0.995
+    brief: 2号店の準備で忙しくなります。サイトは今の調子で、止まらず、重くならずにお願いします
+    events:
+      - { day: 15, type: spike, label: 2号店オープン記念セール, factor: 2, days: 2 }
+      - { day: 25, type: db-failure, label: データベースの障害 }
