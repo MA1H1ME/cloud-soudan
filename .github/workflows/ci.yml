@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # 下書きを含めて構造を検証し、型チェックとテストを行う
+      - run: npm run content:draft
+      - run: npm run typecheck
+      - run: npm test
+      # 公開用（確認済みのみ）の検証とビルドが通ることも確認する
+      - run: npm run build

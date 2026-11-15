@@ -1,0 +1,22 @@
+# 学習項目（復習の単位）。仕様書「6. デイリータスクと復習」
+# reviewScenarioIds：この項目を問う復習用の相談（ゲスト客）。公開前に2件以上必要。
+- id: static-site-delivery
+  title: 静的サイトの配信方法の選び方
+  domain: cost
+  requires: [s3, s3-website, cloudfront, ec2, alb]
+  reviewScenarioIds: []
+- id: rds-multiaz-vs-read-replica
+  title: RDSのマルチAZとリードレプリカの使い分け
+  domain: resilient
+  requires: [ec2, alb, rds, rds-backup, rds-multi-az, rds-read-replica]
+  reviewScenarioIds: []
+- id: s3-private-access
+  title: 非公開のS3オブジェクトを特定の人に渡す方法
+  domain: secure
+  requires: [s3, s3-presigned-url, ec2, iam-user]
+  reviewScenarioIds: []
+- id: ec2-iam-role
+  title: EC2上のアプリにAWSの権限を渡す方法
+  domain: secure
+  requires: [ec2, iam-role, iam-user, s3]
+  reviewScenarioIds: []

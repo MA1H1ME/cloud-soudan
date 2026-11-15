@@ -1,0 +1,37 @@
+{
+  "name": "cloud-soudan",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AWS SAA-C03 の学習用シナリオゲーム（非公式）",
+  "scripts": {
+    "content": "tsx scripts/validate-content.ts",
+    "content:draft": "tsx scripts/validate-content.ts --allow-draft",
+    "dev": "npm run content:draft && vite",
+    "build": "npm run content && tsc --noEmit && vite build",
+    "build:draft": "npm run content:draft && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tailwindcss": "^4.3.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.1.0",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  }
+}

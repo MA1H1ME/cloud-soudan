@@ -1,0 +1,52 @@
+# サービス図鑑のカード。仕様書「5. チュートリアルとサービス解禁」
+# 説明文も公式ドキュメントとの照合対象。
+- id: s3
+  name: Amazon S3
+  summary: ファイルを置いておくオブジェクトストレージ。
+  useWhen: 画像・動画・静的なWebサイト・バックアップなど、ファイルを保存して配りたいとき。
+- id: s3-website
+  name: S3 静的ウェブサイトホスティング
+  summary: S3のバケットをそのままWebサイトとして公開する機能。
+  useWhen: HTMLと画像だけのサイトを手軽に公開したいとき。
+  misconception: これだけで独自ドメインのHTTPS配信ができると思いがち。
+- id: s3-presigned-url
+  name: S3 署名付きURL
+  summary: 非公開のオブジェクトに、期限付きでアクセスできるURLを発行する仕組み。
+  useWhen: 特定の人にだけ、一時的にファイルを渡したいとき。
+- id: ec2
+  name: Amazon EC2
+  summary: 仮想サーバー。OSから自分で管理する。
+  useWhen: サーバー側で処理を動かす必要があり、細かく制御したいとき。
+- id: cloudfront
+  name: Amazon CloudFront
+  summary: コンテンツを利用者の近くから配信するCDN。
+  useWhen: 表示を速くしたい、HTTPSで配信したい、アクセスの急増に備えたいとき。
+- id: alb
+  name: Application Load Balancer
+  summary: 届いたリクエストを複数のサーバーに振り分ける。
+  useWhen: サーバーを複数台・複数のAZに並べて、1台止まっても動き続けたいとき。
+- id: rds
+  name: Amazon RDS
+  summary: 管理をAWSに任せられるリレーショナルデータベース。
+  useWhen: 注文や会員など、表形式のデータを確実に保存したいとき。
+- id: rds-backup
+  name: RDS 自動バックアップ
+  summary: データベースを自動で定期的にバックアップし、指定した時点に戻せるようにする。
+  useWhen: データが消えることへの備えを、低コストで用意したいとき。
+- id: rds-multi-az
+  name: RDS マルチAZ配置
+  summary: 別のAZに待機系を持ち、障害時に自動で切り替える。
+  useWhen: データベースが止まると困るとき。
+- id: rds-read-replica
+  name: RDS リードレプリカ
+  summary: 読み取り専用の複製を作り、読み取りの負荷を分散する。
+  useWhen: 読み取りが多くてデータベースが重いとき。
+  misconception: 障害時に自動で切り替わる予備だと思いがち。
+- id: iam-role
+  name: IAM ロール
+  summary: EC2などに一時的な認証情報を渡すための、権限のまとまり。
+  useWhen: AWS上のプログラムから、キーを保存せずに他のサービスを使いたいとき。
+- id: iam-user
+  name: IAM ユーザー
+  summary: AWSを操作する人やシステムのための、長期の認証情報を持つアカウント。
+  useWhen: 作業者がAWSを操作するとき。アプリの利用者の管理には使わない。

@@ -1,0 +1,13 @@
+# お客さん。仕様書「2. 世界観・キャラクター」
+- id: akari
+  name: 水野 灯
+  business: 個人の旅行ブログ
+  kind: main
+- id: kashiwagi
+  name: 柏木 誠
+  business: 洋菓子店の通販サイト
+  kind: main
+- id: himuro
+  name: 氷室 玲
+  business: クリニック向け予約サービス（CTO）
+  kind: main
