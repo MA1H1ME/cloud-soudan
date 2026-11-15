@@ -1,19 +1,19 @@
 import { useRoute } from './router';
-import { Home } from './screens/Home';
-import { Consult } from './screens/Consult';
-import { Result } from './screens/Result';
-import { Explain } from './screens/Explain';
+import { Office } from './screens/Office';
+import { BlueprintScreen } from './screens/Blueprint';
+import { Sim } from './screens/Sim';
+import { Report } from './screens/Report';
 
 export function App() {
   const route = useRoute();
   switch (route.name) {
-    case 'consult':
-      return <Consult key={route.scenarioId} scenarioId={route.scenarioId} />;
-    case 'result':
-      return <Result scenarioId={route.scenarioId} />;
-    case 'explain':
-      return <Explain scenarioId={route.scenarioId} />;
+    case 'blueprint':
+      return <BlueprintScreen customerId={route.customerId} />;
+    case 'sim':
+      return <Sim key={route.customerId} customerId={route.customerId} />;
+    case 'report':
+      return <Report customerId={route.customerId} />;
     default:
-      return <Home />;
+      return <Office />;
   }
 }

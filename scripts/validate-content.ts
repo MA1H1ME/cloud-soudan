@@ -18,6 +18,8 @@ import {
   type ContentBundle,
   type Scenario,
 } from '../src/content/schema';
+import { ruleSchema, simCustomerSchema, type SimCustomer } from '../src/sim/schema';
+import { RULE_IDS } from '../src/sim/engine';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const contentDir = join(root, 'content');
@@ -136,9 +138,35 @@ export function validate(dir: string, allowDraft: boolean): Report {
     }
   }
 
+  // 運用シム：ルールとお客さんごとの月次計画
+  const rules = load(join(dir, 'rules.yaml'), z.array(ruleSchema), errors) ?? [];
+  const ruleIds = dup('rule', rules.map((r) => r.id));
+  for (const id of RULE_IDS) if (!ruleIds.has(id)) errors.push(`rules.yaml: エンジンが使うルール ${id} がありません`);
+  for (const r of rules) {
+    if (!conceptIds.has(r.conceptId)) errors.push(`rule ${r.id}: 存在しない学習項目 ${r.conceptId}`);
+    if (r.review.status === 'verified' && r.sources.length === 0) errors.push(`rule ${r.id}: 確認済みなのに出典がありません`);
+  }
+  const simDir = join(dir, 'sim');
+  let sim: SimCustomer[] = [];
+  for (const f of readdirSync(simDir).filter((n) => n.endsWith('.yaml')).sort()) {
+    const c = load(join(simDir, f), simCustomerSchema, errors);
+    if (!c) continue;
+    if (!customerIds.has(c.customerId)) errors.push(`sim/${f}: 存在しないお客さん ${c.customerId}`);
+    c.months.forEach((m, i) => {
+      if (m.month !== i + 1) errors.push(`sim/${f}: months は1から順に並べてください（${i + 1}番目が month ${m.month}）`);
+    });
+    sim.push(c);
+  }
+  const draftRules = rules.filter((r) => r.review.status !== 'verified').length;
+  if (!allowDraft && draftRules > 0) {
+    // 照合前のルールが残っている間は、運用シムを公開用ビルドに含めない
+    warnings.push(`下書きのルールが ${draftRules} 件あるため、運用シムは公開用ビルドから除外しました`);
+    sim = [];
+  }
+
   if (!allowDraft && drafts > 0) warnings.push(`下書きの相談 ${drafts} 件は公開用ビルドから除外しました`);
 
-  return { errors, warnings, bundle: { scenarios: selected, concepts, customers, cards } };
+  return { errors, warnings, bundle: { scenarios: selected, concepts, customers, cards, rules, sim } };
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

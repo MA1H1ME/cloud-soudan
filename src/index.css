@@ -9,3 +9,15 @@ body {
   color: #0f172a;
   font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
 }
+
+/* 判子が押される演出 */
+@keyframes stamp-in {
+  0% { transform: scale(2.6) rotate(-30deg); opacity: 0; }
+  70% { transform: scale(0.92) rotate(-12deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-12deg); opacity: 1; }
+}
+.stamp { transform: rotate(-12deg); animation: stamp-in 0.45s ease-out 0.2s both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stamp { animation: none; }
+}

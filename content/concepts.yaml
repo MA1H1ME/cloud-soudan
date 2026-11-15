@@ -20,3 +20,18 @@
   domain: secure
   requires: [ec2, iam-role, iam-user, s3]
   reviewScenarioIds: []
+- id: rds-backup-restore
+  title: バックアップで守れるもの、守れないもの
+  domain: resilient
+  requires: [rds, rds-backup]
+  reviewScenarioIds: []
+- id: ec2-scaling-and-load-balancing
+  title: ロードバランサーと Auto Scaling で負荷に備える
+  domain: performant
+  requires: [ec2, alb]
+  reviewScenarioIds: []
+- id: multi-az-web-tier
+  title: Web層を複数のAZに置いて止まらなくする
+  domain: resilient
+  requires: [ec2, alb]
+  reviewScenarioIds: []

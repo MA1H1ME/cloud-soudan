@@ -1,6 +1,7 @@
 // コンテンツ（シナリオ・学習項目・お客さん・図鑑カード）の形。
 // 仕様書「9. データ構造」に対応する。型はこのスキーマから導出する。
 import { z } from 'zod';
+import type { Rule, SimCustomer } from '../sim/schema';
 
 export const PILLARS = ['security', 'reliability', 'performance', 'cost', 'operations'] as const;
 export const PILLAR_LABELS: Record<Pillar, string> = {
@@ -147,4 +148,6 @@ export interface ContentBundle {
   concepts: Concept[];
   customers: Customer[];
   cards: Card[];
+  rules: Rule[];
+  sim: SimCustomer[];
 }

@@ -1,102 +1,81 @@
-// セーブデータ。端末の localStorage に保存する。仕様書「9. データ構造 — セーブデータ」
+// セーブデータ。端末の localStorage に保存する。
+// 結果は保存せず、「その月に使った構成」だけを残して毎回計算し直す（計算は決定的）。
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { conceptById, content, scenarioById } from './content';
-import { checkAll } from './engine/conditions';
-import { enqueue, gameDate, initialStage, onReviewAnswered, pickDueReviews, pickReviewScenario, type ReviewItem } from './engine/review';
-import { TRUST_GAIN, evaluate, type Evaluation, type Grade } from './engine/scoring';
+import { simByCustomer } from './content';
+import { runMonth, type MonthResult } from './sim/engine';
+import { LOCKED_SLOTS } from './sim/parts';
+import type { Blueprint, MonthPlan, PartType, SimCustomer, Slot } from './sim/schema';
 
-export interface PlayRecord {
-  scenarioId: string;
-  playedOn: string;
-  choices: Record<string, string>;
-  fit: number;
-  grade: Grade;
-  usedHint: boolean;
+export interface CustomerSave {
+  month: number;
+  blueprint: Blueprint;
+  /** 「今月を回す」を押してから「翌月へ」を押すまでの間、その月に使った構成 */
+  running: Blueprint | null;
+  history: { month: number; blueprint: Blueprint }[];
 }
 
 interface SaveState {
-  version: 1;
-  playerName: string;
-  flags: Record<string, string>;
-  trust: Record<string, number>;
-  completedOn: Record<string, string>;
-  history: PlayRecord[];
-  review: Record<string, ReviewItem>;
-  setPlayerName: (name: string) => void;
-  submit: (scenarioId: string, choices: Record<string, string>, usedHint: boolean) => Evaluation;
+  customers: Record<string, CustomerSave>;
+  setSlot: (customerId: string, slot: Slot, part: PartType | null) => void;
+  setSetting: (customerId: string, key: 'backup' | 'autoScaling', value: boolean) => void;
+  run: (customerId: string) => void;
+  next: (customerId: string) => void;
   reset: () => void;
 }
 
-const initial = {
-  version: 1 as const,
-  playerName: '',
-  flags: {},
-  trust: {},
-  completedOn: {},
-  history: [],
-  review: {},
-};
+function initial(sim: SimCustomer): CustomerSave {
+  return { month: 1, blueprint: sim.start, running: null, history: [] };
+}
 
-export const today = () => gameDate(new Date());
+export function customerSave(state: Pick<SaveState, 'customers'>, customerId: string): CustomerSave | undefined {
+  const sim = simByCustomer.get(customerId);
+  return sim ? (state.customers[customerId] ?? initial(sim)) : undefined;
+}
 
 export const useSave = create<SaveState>()(
   persist(
-    (set, get) => ({
-      ...initial,
-      setPlayerName: (playerName) => set({ playerName }),
-      reset: () => set(initial),
-      submit: (scenarioId, choices, usedHint) => {
-        const scenario = scenarioById.get(scenarioId);
-        if (!scenario) throw new Error(`unknown scenario ${scenarioId}`);
-        const result = evaluate(scenario, choices);
-        const day = today();
-        const state = get();
-
-        const flags = { ...state.flags };
-        const review = { ...state.review };
-        for (const d of scenario.decisions) {
-          const opt = d.options.find((o) => o.id === choices[d.id]);
-          if (opt) Object.assign(flags, opt.setFlags);
-          const prev = review[d.conceptId];
-          if (scenario.kind === 'review' && prev) {
-            review[d.conceptId] = onReviewAnswered(prev, result.grade, scenarioId, day);
-          } else if (scenario.kind === 'story' && !prev) {
-            const stage = initialStage(result.grade, usedHint, Boolean(opt?.misconception));
-            review[d.conceptId] = enqueue(d.conceptId, scenarioId, stage, day);
-          }
-        }
-
-        set({
-          flags,
-          review,
-          trust: { ...state.trust, [scenario.customerId]: (state.trust[scenario.customerId] ?? 0) + TRUST_GAIN[result.grade] },
-          completedOn: { ...state.completedOn, [scenarioId]: day },
-          history: [...state.history, { scenarioId, playedOn: day, choices, fit: result.fit, grade: result.grade, usedHint }],
-        });
-        return result;
-      },
-    }),
-    { name: 'cloud-soudan-save', version: 1 },
+    (set, get) => {
+      const update = (customerId: string, fn: (c: CustomerSave) => CustomerSave) => {
+        const current = customerSave(get(), customerId);
+        if (current) set({ customers: { ...get().customers, [customerId]: fn(current) } });
+      };
+      return {
+        customers: {},
+        setSlot: (customerId, slot, part) =>
+          update(customerId, (c) => {
+            if (LOCKED_SLOTS.includes(slot)) return c;
+            const slots = { ...c.blueprint.slots, [slot]: part };
+            // Auto Scaling は ALB がある構成でだけ使える
+            return { ...c, blueprint: { ...c.blueprint, slots, autoScaling: c.blueprint.autoScaling && slots.public !== null } };
+          }),
+        setSetting: (customerId, key, value) => update(customerId, (c) => ({ ...c, blueprint: { ...c.blueprint, [key]: value } })),
+        run: (customerId) => update(customerId, (c) => ({ ...c, running: c.blueprint })),
+        next: (customerId) =>
+          update(customerId, (c) =>
+            c.running ? { ...c, month: c.month + 1, running: null, history: [...c.history, { month: c.month, blueprint: c.running }] } : c,
+          ),
+        reset: () => set({ customers: {} }),
+      };
+    },
+    { name: 'cloud-soudan-sim', version: 1 },
   ),
 );
 
-/** 今日の相談：復習（期限の古い順に最大3件）→ ストーリー1件。仕様書「6. 今日の相談の決め方」 */
-export function todaysScenarios(state: Pick<SaveState, 'flags' | 'completedOn' | 'review'>, day: string): string[] {
-  const reviews = pickDueReviews(Object.values(state.review), conceptById, day)
-    .map((item) => {
-      const concept = conceptById.get(item.conceptId);
-      return concept ? pickReviewScenario(item, concept) : undefined;
-    })
-    .filter((id): id is string => Boolean(id && scenarioById.has(id)));
+export function planFor(sim: SimCustomer, month: number): MonthPlan | undefined {
+  return sim.months.find((m) => m.month === month);
+}
 
-  // ストーリーは1日1件：今日すでに進めていれば、新しいエピソードは出さない
-  const doneToday = content.scenarios.find((s) => s.kind !== 'review' && state.completedOn[s.id] === day);
-  if (doneToday) return [...reviews, doneToday.id];
+/** 進行中の月（「今月を回す」を押した後）の結果 */
+export function runningResult(sim: SimCustomer, save: CustomerSave): MonthResult | undefined {
+  const plan = planFor(sim, save.month);
+  return plan && save.running ? runMonth(sim.profitPerVisit, plan, save.running) : undefined;
+}
 
-  const condState = { flags: state.flags, completedOn: state.completedOn, today: day };
-  const story = content.scenarios.find(
-    (s) => s.kind !== 'review' && !(s.id in state.completedOn) && checkAll(s.prerequisites, condState),
-  );
-  return [...reviews, ...(story ? [story.id] : [])];
+/** 過去の月の結果（古い順） */
+export function pastResults(sim: SimCustomer, save: CustomerSave): { month: number; result: MonthResult }[] {
+  return save.history.flatMap((h) => {
+    const plan = planFor(sim, h.month);
+    return plan ? [{ month: h.month, result: runMonth(sim.profitPerVisit, plan, h.blueprint) }] : [];
+  });
 }
