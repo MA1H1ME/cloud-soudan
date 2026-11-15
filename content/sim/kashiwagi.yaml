@@ -2,6 +2,7 @@
 # 金額・訪問数・処理能力はすべてゲーム内の値。
 customerId: kashiwagi
 profitPerVisit: 8
+contractFee: 30000
 start:
   slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }
   backup: true

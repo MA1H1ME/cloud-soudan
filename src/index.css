@@ -21,3 +21,21 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .stamp { animation: none; }
 }
+
+/* ドット絵の演出 */
+.pixel { image-rendering: pixelated; shape-rendering: crispEdges; }
+@keyframes run-x { from { transform: translateX(-10px); } to { transform: translateX(10px); } }
+.runner { animation: run-x 0.5s steps(2) infinite alternate; }
+@keyframes float-up { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-16px); opacity: 0; } }
+.popup { animation: float-up 0.9s ease-out forwards; }
+@keyframes blink { 50% { opacity: 0.25; } }
+.blink { animation: blink 0.4s steps(1) infinite; }
+@keyframes puff { from { transform: translateY(0); opacity: 0.9; } to { transform: translateY(-10px); opacity: 0; } }
+.puff { animation: puff 1s linear infinite; }
+.puff-2 { animation-delay: 0.33s; }
+.puff-3 { animation-delay: 0.66s; }
+@keyframes bob { 50% { transform: translateY(-3px); } }
+.bob { animation: bob 0.6s steps(2) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .runner, .popup, .blink, .puff, .bob { animation: none; }
+}

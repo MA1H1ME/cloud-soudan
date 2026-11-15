@@ -3,7 +3,7 @@ import { customerById, ruleById, simByCustomer } from '../content';
 import { GRADE_TEXT, PrimaryButton, Screen, Stamp, Voice, pct, yen } from '../components/ui';
 import { go } from '../router';
 import { SLOW_DAYS_ALLOWED } from '../sim/parts';
-import { customerSave, planFor, runningResult, useSave } from '../store';
+import { BEST_BONUS, customerSave, planFor, runningResult, useSave } from '../store';
 
 export function Report({ customerId }: { customerId: string }) {
   const state = useSave();
@@ -11,7 +11,7 @@ export function Report({ customerId }: { customerId: string }) {
   const save = customerSave(state, customerId);
   const plan = sim && save ? planFor(sim, save.month) : undefined;
   const result = sim && save ? runningResult(sim, save) : undefined;
-  if (!sim || !save || !plan || !result) return <Screen title="レポートがありません"><PrimaryButton onClick={() => go({ name: 'office' })}>オフィスに戻る</PrimaryButton></Screen>;
+  if (!sim || !save || !plan || !result) return <Screen title="レポートがありません"><PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton></Screen>;
 
   const name = customerById.get(customerId)?.name ?? customerId;
   const kpis = [
@@ -20,12 +20,12 @@ export function Report({ customerId }: { customerId: string }) {
     { ok: result.kpi.performance, label: '重くない', detail: `重かった日 ${result.slowDays}日／${SLOW_DAYS_ALLOWED}日まで` },
   ];
   const next = () => {
-    state.next(customerId);
-    go({ name: 'office' });
+    state.next(customerId, result.grade);
+    go({ name: 'floor' });
   };
 
   return (
-    <Screen title={`月次レポート：${save.month}か月目`} footer={<PrimaryButton onClick={next}>翌月へ進む</PrimaryButton>}>
+    <Screen title={`月次レポート：${save.month}か月目`} footer={<PrimaryButton onClick={next}>翌月へ進む{result.grade !== 'fail' ? `（契約料 +${yen(sim.contractFee)}${result.grade === 'best' ? `、ボーナス +${yen(BEST_BONUS)}` : ''}）` : '（契約料なし）'}</PrimaryButton>}>
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <Voice name={name} mood={result.grade === 'best' ? 'happy' : result.grade === 'good' ? 'normal' : 'troubled'}>{sim.comments[result.grade]}</Voice>
