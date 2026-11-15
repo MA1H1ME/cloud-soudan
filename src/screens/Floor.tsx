@@ -88,6 +88,7 @@ export function Floor() {
   const monthEarned = result ? result.earnedByDay.slice(0, day).reduce((a, b) => a + b, 0) : 0;
   const stars = Math.min(5, 1 + past.filter((p) => p.result.grade === 'best').length);
   const before = !save.running;
+  const inCase = save.phase !== 'operate';
   const finished = !plan;
 
   return (
@@ -193,9 +194,15 @@ export function Floor() {
         {!finished && (
           <div className="flex items-center justify-center gap-2 px-3 py-2" style={{ fontFamily: MONO }}>
             {before ? (
+inCase ? (
+                <button type="button" onClick={() => go({ name: save.phase === 'design' ? 'blueprint' : (save.phase as 'hearing' | 'build' | 'verify'), customerId: MAIN })} className="w-full py-3 font-bold text-white" style={{ background: '#0f766e' }}>
+                  {save.phase === 'hearing' && save.asked.length === 0 ? '依頼を受けて、話を聞く' : '案件の続きへ'}
+                </button>
+              ) : (
               <button type="button" onClick={() => { state.startMonth(MAIN); setSpeed(1); }} className="w-full py-3 font-bold text-white" style={{ background: '#c2410c' }}>
                 ▶ この構成で{save.month}か月目を始める
               </button>
+              )
             ) : (
               ([[0, '⏸ 停止'], [1, '▶ ×1'], [4, '▶▶ ×4']] as const).map(([s, label]) => (
                 <button key={s} type="button" aria-pressed={speed === s} onClick={() => setSpeed(s)} disabled={day >= DAYS}
@@ -208,8 +215,8 @@ export function Floor() {
         )}
         <nav className="grid grid-cols-4 gap-1 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1">
           {[
-            { label: '設計図', on: before && !finished, go: () => go({ name: 'blueprint', customerId: MAIN }), note: '月初だけ' },
-            { label: '雇う', on: false, note: '準備中' },
+            { label: '設計図', on: before && !finished && !inCase, go: () => go({ name: 'blueprint', customerId: MAIN }), note: '月初だけ' },
+            { label: '構築', on: before && !finished && !inCase, go: () => go({ name: 'build', customerId: MAIN }), note: '月初だけ' },
             { label: '顧客', on: false, note: '準備中' },
             { label: '報告', on: Boolean(result && day >= DAYS), go: () => go({ name: 'report', customerId: MAIN }), note: '月末' },
           ].map((m) => (

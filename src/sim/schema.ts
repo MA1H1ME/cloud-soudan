@@ -14,10 +14,12 @@ export const blueprintSchema = z.object({
   slots: z.object({ public: part, 'app-a': part, 'app-c': part, 'data-a': part, 'data-c': part }),
   backup: z.boolean(),
   autoScaling: z.boolean(),
+  dbPublic: z.boolean().default(false), // データベースのパブリックアクセス
+  dbSgOpen: z.boolean().default(false), // セキュリティグループがどこからでも接続を許可している
 });
 export type Blueprint = z.infer<typeof blueprintSchema>;
 
-export const eventTypeSchema = z.enum(['spike', 'db-failure', 'az-outage']);
+export const eventTypeSchema = z.enum(['spike', 'db-failure', 'az-outage', 'probe']);
 export type EventType = z.infer<typeof eventTypeSchema>;
 
 export const monthPlanSchema = z.object({
@@ -38,11 +40,32 @@ export const monthPlanSchema = z.object({
 });
 export type MonthPlan = z.infer<typeof monthPlanSchema>;
 
+export const checkTypeSchema = z.enum(['budget', 'data', 'downtime', 'peak', 'secure-db']);
+export type CheckType = z.infer<typeof checkTypeSchema>;
+
+// ヒアリング：用意した質問から選んで聞き、要件メモを埋める。会話は事前に作成したものだけ。
+export const hearingSchema = z.object({
+  opening: z.string().min(1), // お客さんの最初のひとこと
+  maxQuestions: z.number().int().min(1),
+  questions: z.array(z.object({ id: z.string().min(1), text: z.string().min(1), answer: z.string().min(1), reveals: z.string().optional() })).min(1),
+  requirements: z.array(
+    z.object({
+      id: z.string().min(1),
+      label: z.string().min(1), // 聞き出せたときに要件メモに書く文
+      unknown: z.string().min(1), // 聞けていないときの表示
+      check: checkTypeSchema, // 検証のしかた
+      given: z.boolean().default(false), // 依頼の時点で分かっている
+    }),
+  ).min(1),
+});
+export type Hearing = z.infer<typeof hearingSchema>;
+
 export const simCustomerSchema = z.object({
   customerId: z.string().min(1),
   profitPerVisit: z.number().min(0), // 1訪問あたりのもうけ（ゲーム内の値）
   contractFee: z.number().min(0).default(30000), // 自社に入る月の契約料（ゲーム内の値）
   start: blueprintSchema,
+  hearing: hearingSchema.optional(),
   months: z.array(monthPlanSchema).min(1),
   comments: z.object({ best: z.string(), good: z.string(), fair: z.string(), fail: z.string() }),
 });

@@ -13,6 +13,7 @@ export const RULE_IDS = [
   'db-multi-az', 'db-replica-manual', 'db-single-backup', 'db-no-backup',
   'web-single-overload', 'web-fixed-overload', 'asg-scale-out', 'web-alb-spread',
   'web-single-az-outage', 'web-multi-az-survive', 'web-second-without-alb', 'alb-single-ec2',
+  'db-exposed', 'db-private',
 ] as const;
 export type RuleId = (typeof RULE_IDS)[number];
 
@@ -25,7 +26,7 @@ export interface MonthResult {
   fired: FiredRule[];
   fixedCost: number; cost: number; earned: number; lost: number; net: number;
   uptime: number; slowDays: number;
-  kpi: { budget: boolean; uptime: boolean; performance: boolean };
+  kpi: { budget: boolean; uptime: boolean; performance: boolean; security: boolean };
   grade: Grade;
 }
 
@@ -50,7 +51,12 @@ export function fixedCost(bp: Blueprint): number {
   return parts + (bp.backup ? BACKUP_COST : 0);
 }
 
-function dbFailure(bp: Blueprint): { rule: RuleId; down: number; penaltyDays: number } {
+/** データベースにインターネットから届く状態か（パブリックアクセスあり、かつ接続元を絞っていない） */
+export function dbExposed(bp: Blueprint): boolean {
+  return bp.dbPublic && bp.dbSgOpen;
+}
+
+export function dbFailure(bp: Blueprint): { rule: RuleId; down: number; penaltyDays: number } {
   const c = bp.slots['data-c'];
   if (c === 'rds-standby') return { rule: 'db-multi-az', down: 0.02, penaltyDays: 0 };
   if (c === 'rds-replica') return { rule: 'db-replica-manual', down: 0.25, penaltyDays: 0 };
@@ -74,12 +80,21 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint)
     }
   };
   let penalty = 0;
+  let breached = false;
   const web = webServers(bp);
   const events = [...plan.events].sort((a, b) => a.day - b.day);
 
   for (const ev of events) {
     if (ev.type === 'spike') {
       for (let i = ev.day - 1; i < Math.min(DAYS, ev.day - 1 + (ev.days ?? 2)); i++) load[i] = load[i]! * (ev.factor ?? 2);
+      continue;
+    }
+    if (ev.type === 'probe') {
+      if (dbExposed(bp)) {
+        breached = true;
+        fire('db-exposed', ev.day, ev.label);
+        penalty += 5 * profitPerVisit * plan.visitsPerDay;
+      } else fire('db-private', ev.day, ev.label);
       continue;
     }
     const db = dbFailure(bp);
@@ -130,9 +145,9 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint)
   const cost = fixed + scalingByDay.reduce((a, b) => a + b, 0);
   const uptime = up.reduce((a, b) => a + b, 0) / DAYS;
   const slowDays = slow.filter(Boolean).length;
-  const kpi = { budget: cost <= plan.budget, uptime: uptime >= plan.uptimeTarget, performance: slowDays <= SLOW_DAYS_ALLOWED };
-  const met = Number(kpi.budget) + Number(kpi.uptime) + Number(kpi.performance);
-  const grade: Grade = met === 3 ? 'best' : met === 2 ? 'good' : met === 1 ? 'fair' : 'fail';
+  const kpi = { budget: cost <= plan.budget, uptime: uptime >= plan.uptimeTarget, performance: slowDays <= SLOW_DAYS_ALLOWED, security: !breached };
+  const met = Number(kpi.budget) + Number(kpi.uptime) + Number(kpi.performance) + Number(kpi.security);
+  const grade: Grade = met === 4 ? 'best' : met === 3 ? 'good' : met === 2 ? 'fair' : 'fail';
 
   return {
     load, cap, up, served, slow, earnedByDay, scalingByDay,

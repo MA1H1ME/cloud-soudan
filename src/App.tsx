@@ -4,6 +4,9 @@ import { Opening } from './screens/Opening';
 import { Floor } from './screens/Floor';
 import { BlueprintScreen } from './screens/Blueprint';
 import { Report } from './screens/Report';
+import { Hearing } from './screens/Hearing';
+import { Build } from './screens/Build';
+import { Verify } from './screens/Verify';
 
 export function App() {
   const route = useRoute();
@@ -12,6 +15,12 @@ export function App() {
       return <Opening />;
     case 'floor':
       return <Floor />;
+    case 'hearing':
+      return <Hearing customerId={route.customerId} />;
+    case 'build':
+      return <Build customerId={route.customerId} />;
+    case 'verify':
+      return <Verify customerId={route.customerId} />;
     case 'blueprint':
       return <BlueprintScreen customerId={route.customerId} />;
     case 'report':

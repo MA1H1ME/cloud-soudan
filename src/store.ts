@@ -18,7 +18,13 @@ export interface CustomerSave {
   /** 月の中の経過日数（0〜30） */
   day: number;
   history: { month: number; blueprint: Blueprint }[];
+  /** 最初の案件の進み具合。運用に入ったら 'operate' のまま */
+  phase: Phase;
+  /** ヒアリングで聞いた質問のID */
+  asked: string[];
 }
+
+export type Phase = 'hearing' | 'design' | 'build' | 'verify' | 'operate';
 
 export interface Company { name: string; cash: number }
 
@@ -27,14 +33,16 @@ interface SaveState {
   customers: Record<string, CustomerSave>;
   newGame: (name: string) => void;
   setSlot: (customerId: string, slot: Slot, part: PartType | null) => void;
-  setSetting: (customerId: string, key: 'backup' | 'autoScaling', value: boolean) => void;
+  setSetting: (customerId: string, key: 'backup' | 'autoScaling' | 'dbPublic' | 'dbSgOpen', value: boolean) => void;
+  ask: (customerId: string, questionId: string) => void;
+  setPhase: (customerId: string, phase: Phase) => void;
   startMonth: (customerId: string) => void;
   setDay: (customerId: string, day: number) => void;
   next: (customerId: string, grade: Grade) => void;
 }
 
 function initial(sim: SimCustomer): CustomerSave {
-  return { month: 1, blueprint: sim.start, running: null, day: 0, history: [] };
+  return { month: 1, blueprint: sim.start, running: null, day: 0, history: [], phase: sim.hearing ? 'hearing' : 'operate', asked: [] };
 }
 
 export function customerSave(state: Pick<SaveState, 'customers'>, customerId: string): CustomerSave | undefined {
@@ -62,6 +70,12 @@ export const useSave = create<SaveState>()(
           }),
         setSetting: (customerId, key, value) =>
           update(customerId, (c) => (c.running ? c : { ...c, blueprint: { ...c.blueprint, [key]: value } })),
+        ask: (customerId, questionId) =>
+          update(customerId, (c) => {
+            const max = simByCustomer.get(customerId)?.hearing?.maxQuestions ?? 0;
+            return c.asked.includes(questionId) || c.asked.length >= max ? c : { ...c, asked: [...c.asked, questionId] };
+          }),
+        setPhase: (customerId, phase) => update(customerId, (c) => ({ ...c, phase })),
         startMonth: (customerId) => update(customerId, (c) => (c.running ? c : { ...c, running: c.blueprint, day: 0 })),
         setDay: (customerId, day) => update(customerId, (c) => ({ ...c, day: Math.min(DAYS, day) })),
         next: (customerId, grade) => {
@@ -78,7 +92,7 @@ export const useSave = create<SaveState>()(
         },
       };
     },
-    { name: 'cloud-soudan-company', version: 1 },
+    { name: 'cloud-soudan-company-2', version: 1 },
   ),
 );
 

@@ -92,3 +92,18 @@
   examPoint: 部品は役割が生きる組み合わせで置く。使われない部品はコストになる。
   ticket: { kind: billing, voice: 請求書に見慣れない項目が増えていました。これは何に効いているんでしょう？ }
   review: { status: draft }
+- id: db-exposed
+  conceptId: rds-network-isolation
+  tone: bad
+  headline: データベースにインターネットから届く状態で、住所と電話番号が漏れた
+  explanation: パブリックアクセスを有効にし、セキュリティグループでどこからの接続も許可していると、データベースにインターネットから直接届きます。データベースはプライベートサブネットに置き、接続元をWebサーバーのセキュリティグループだけに絞ります。
+  examPoint: 「データベースはインターネットから到達できないこと」には、プライベートサブネットへの配置と、セキュリティグループで接続元を絞る構成。
+  ticket: { kind: security, voice: お客さんの住所と電話番号が漏れました。一軒ずつお詫びに回っています }
+  review: { status: draft }
+- id: db-private
+  conceptId: rds-network-isolation
+  tone: good
+  headline: データベースには外から届かず、不審なアクセスは何も得られなかった
+  explanation: パブリックアクセスを無効にするか、セキュリティグループで接続元をWebサーバーだけに絞っていたので、インターネットからの接続は届きませんでした。両方とも閉じておくのが基本です。
+  examPoint: セキュリティグループの接続元には、IPアドレスの範囲だけでなく、別のセキュリティグループも指定できる。
+  review: { status: draft }
