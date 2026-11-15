@@ -16,7 +16,7 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
   const sim = simByCustomer.get(customerId);
   const save = customerSave(state, customerId);
   const plan = sim && save ? planFor(sim, save.month) : undefined;
-  if (!sim || !save || !plan) return <Screen title="設計図が見つかりません"><PrimaryButton onClick={() => go({ name: 'office' })}>オフィスに戻る</PrimaryButton></Screen>;
+  if (!sim || !save || !plan) return <Screen title="設計図が見つかりません"><PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton></Screen>;
 
   const bp = save.blueprint;
   const name = customerById.get(customerId)?.name ?? customerId;
@@ -25,16 +25,12 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
   const asg = scalingActive(bp);
   const last = pastResults(sim, save).at(-1)?.result;
   const tickets = last ? ticketsFrom(last, ruleById) : [];
-  const run = () => {
-    state.run(customerId);
-    go({ name: 'sim', customerId });
-  };
 
   return (
     <Screen
       title={`${name}さんの設計図`}
-      right={<button type="button" onClick={() => go({ name: 'office' })} className="text-sm text-slate-500 underline">オフィス</button>}
-      footer={<PrimaryButton onClick={run}>この構成で今月を回す</PrimaryButton>}
+      right={<button type="button" onClick={() => go({ name: 'floor' })} className="text-sm text-slate-500 underline">フロア</button>}
+      footer={<PrimaryButton onClick={() => go({ name: 'floor' })}>{save.running ? 'フロアに戻る' : 'この構成でフロアに戻る'}</PrimaryButton>}
     >
       {tickets.length > 0 && (
         <ul className="space-y-1 text-sm">
@@ -42,9 +38,10 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
         </ul>
       )}
 
-      <BlueprintView blueprint={bp} selected={selected} onSelect={setSelected} />
+      {save.running && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-slate-800">月の途中は構成を変えられません。月末の報告のあとで直せます。</p>}
+      <BlueprintView blueprint={save.running ?? bp} selected={save.running ? null : selected} onSelect={save.running ? undefined : setSelected} />
 
-      {selected ? (
+      {save.running ? null : selected ? (
         <section className="rounded-xl border border-slate-300 px-3 py-3" aria-live="polite">
           <h2 className="mb-2 text-sm font-bold text-slate-900">{SLOT_LABELS[selected]}</h2>
           {LOCKED_SLOTS.includes(selected) ? (

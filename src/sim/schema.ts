@@ -41,6 +41,7 @@ export type MonthPlan = z.infer<typeof monthPlanSchema>;
 export const simCustomerSchema = z.object({
   customerId: z.string().min(1),
   profitPerVisit: z.number().min(0), // 1訪問あたりのもうけ（ゲーム内の値）
+  contractFee: z.number().min(0).default(30000), // 自社に入る月の契約料（ゲーム内の値）
   start: blueprintSchema,
   months: z.array(monthPlanSchema).min(1),
   comments: z.object({ best: z.string(), good: z.string(), fair: z.string(), fail: z.string() }),

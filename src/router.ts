@@ -2,17 +2,18 @@
 import { useEffect, useState } from 'react';
 
 export type Route =
-  | { name: 'office' }
-  | { name: 'blueprint' | 'sim' | 'report'; customerId: string };
+  | { name: 'title' | 'opening' | 'floor' }
+  | { name: 'blueprint' | 'report'; customerId: string };
 
 export function parse(hash: string): Route {
   const [name, id] = hash.replace(/^#\/?/, '').split('/');
-  if ((name === 'blueprint' || name === 'sim' || name === 'report') && id) return { name, customerId: id };
-  return { name: 'office' };
+  if ((name === 'blueprint' || name === 'report') && id) return { name, customerId: id };
+  if (name === 'opening' || name === 'floor') return { name };
+  return { name: 'title' };
 }
 
 export function go(route: Route) {
-  window.location.hash = route.name === 'office' ? '/office' : `/${route.name}/${route.customerId}`;
+  window.location.hash = 'customerId' in route ? `/${route.name}/${route.customerId}` : `/${route.name}`;
 }
 
 export function useRoute(): Route {
