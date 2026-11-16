@@ -72,10 +72,10 @@ export function Build({ customerId }: { customerId: string }) {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-slate-100">
-      <header className="flex items-center gap-2 px-3 py-2 text-white" style={{ background: '#0f3d3e' }}>
-        <span aria-hidden="true">☰</span>
-        <span className="flex-1 rounded px-2 py-1 text-xs text-cyan-100" style={{ background: '#1f5557' }}>サービスを検索</span>
-        <span className="text-xs">東京 ▾</span>
+      <header className="flex min-h-12 items-center gap-2 border-b-2 border-black px-2 text-white" style={{ background: '#14203a' }}>
+        <button type="button" onClick={() => go({ name: 'floor' })} className="-my-1 h-11 shrink-0 px-2 text-sm text-yellow-300" aria-label="フロアに戻る">◀ フロア</button>
+        <h1 className="min-w-0 flex-1 truncate text-base font-bold">構築：{name}さん</h1>
+        <span className="shrink-0 pr-2 text-[11px] text-slate-300">練習用コンソール</span>
       </header>
       <p className="bg-teal-100 py-1 text-center text-[11px] text-teal-900">練習用・非公式。AWSとは関係ありません</p>
 

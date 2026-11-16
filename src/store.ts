@@ -67,6 +67,8 @@ export const MAX_RACKS = 6;
 export const START_RACKS = 3;
 /** 案件メールが届き始める段階（柏木さんの2か月目から） */
 export const MAIL_STAGE = 2;
+/** 届いたメールがこの件数になるまでは、1日1件にする（慣れるまで） */
+export const EARLY_MAILS = 6;
 
 interface SaveState {
   company: Company | null;
@@ -95,6 +97,9 @@ interface SaveState {
   setSeenRank: (rank: number) => void;
   /** 直近の給料日（フロアで知らせる） */
   lastPay: { day: number; amount: number } | null;
+  /** フロアに戻ったときに出す入金の知らせ（一度出したら消す） */
+  income: string | null;
+  notifyIncome: (text: string | null) => void;
   /** 効果音 */
   sound: boolean;
   setSound: (on: boolean) => void;
@@ -177,7 +182,7 @@ export const useSave = create<SaveState>()(
           if (day <= st.clock) return;
           const stage = unlockStage(st);
           const fresh = stage >= MAIL_STAGE
-            ? Array.from({ length: day - st.clock }, (_, i) => st.clock + 1 + i).flatMap((d) => mailsForDay(d, Math.min(3, stage), st.staff.sales).map((id) => ({ id, day: d })))
+            ? Array.from({ length: day - st.clock }, (_, i) => st.clock + 1 + i).flatMap((d) => mailsForDay(d, Math.min(3, stage), st.staff.sales, st.mailLog.length < EARLY_MAILS).map((id) => ({ id, day: d })))
             : [];
           // 古いメールは記録から落とす（受けたものは残す）
           const mailLog = [...st.mailLog, ...fresh].filter((m) => day - m.day < 30 || st.mailStatus[m.id] === 'accepted');
@@ -224,6 +229,8 @@ export const useSave = create<SaveState>()(
         seeEnding: () => set({ endingSeen: true }),
         setSeenRank: (rank) => set({ seenRank: rank }),
         lastPay: null,
+        income: null,
+        notifyIncome: (text) => set({ income: text }),
         sound: true,
         setSound: (on) => { setSoundEnabled(on); set({ sound: on }); },
         hire: (kind) => {
@@ -375,12 +382,13 @@ export function contractFeeFor(state: Pick<SaveState, 'customers' | 'staff'>, cu
   return Math.round(fee / 100) * 100;
 }
 
-/** 受信箱の案件メール（期限内で、まだ返事をしていないもの。新しい順） */
+/** 受信箱の案件メール（期限内で、まだ返事をしていないもの。期限の近い順） */
 export function inbox(state: Pick<SaveState, 'clock' | 'mailLog' | 'mailStatus'>): { id: string; day: number; left: number }[] {
   return state.mailLog
     .filter((m) => !state.mailStatus[m.id] && state.clock - m.day < MAIL_DAYS && simFor(m.id))
     .map((m) => ({ ...m, left: MAIL_DAYS - (state.clock - m.day) }))
-    .reverse();
+    // 期限の近い順（同じなら新しい順）
+    .sort((a, b) => a.left - b.left || b.day - a.day);
 }
 
 /** まだ受けていない本編の依頼（条件を満たして届いているもの） */

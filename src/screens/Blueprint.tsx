@@ -46,7 +46,6 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
   return (
     <Screen
       title={`${name}さんの設計図`}
-      right={<button type="button" onClick={() => go({ name: 'floor' })} className="text-sm text-slate-500 underline">フロア</button>}
       footer={
         inCase ? (
           <PrimaryButton onClick={() => { state.setPhase(customerId, 'build'); go({ name: 'build', customerId }); }}>③ 構築へ進む</PrimaryButton>

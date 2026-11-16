@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Grade } from '../sim/engine';
+import { go } from '../router';
 
 export const yen = (n: number) => `¥${Math.round(n).toLocaleString('ja-JP')}`;
 export const pct = (n: number, digits = 1) => `${(n * 100).toFixed(digits)}%`;
@@ -12,12 +13,19 @@ export const GRADE_TEXT: Record<Grade, string> = {
   fail: '目標を達成できず',
 };
 
-export function Screen({ title, right, children, footer }: { title: string; right?: ReactNode; children: ReactNode; footer?: ReactNode }) {
+/**
+ * 白い画面の共通の枠。見出しはフロアと同じ紺色。左上に「◀ フロア」（back で変更、false で非表示）。
+ */
+export function Screen({ title, right, children, footer, back }: { title: string; right?: ReactNode; children: ReactNode; footer?: ReactNode; back?: (() => void) | false }) {
+  const onBack = back === false ? undefined : back ?? (() => go({ name: 'floor' }));
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col overflow-x-clip bg-white">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
-        <h1 className="text-base font-bold text-slate-900">{title}</h1>
-        {right}
+      <header className="sticky top-0 z-10 flex min-h-12 items-center gap-2 border-b-2 border-black px-2 text-white" style={{ background: '#14203a' }}>
+        {onBack && (
+          <button type="button" onClick={onBack} className="-my-1 h-11 shrink-0 px-2 text-sm text-yellow-300" aria-label="フロアに戻る">◀ フロア</button>
+        )}
+        <h1 className={`min-w-0 flex-1 truncate text-base font-bold ${onBack ? '' : 'pl-2'}`}>{title}</h1>
+        {right && <div className="shrink-0 pr-2 text-sm">{right}</div>}
       </header>
       <main className="flex-1 space-y-4 px-4 py-4">{children}</main>
       {footer && <footer className="sticky bottom-0 z-10 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{footer}</footer>}
@@ -25,13 +33,14 @@ export function Screen({ title, right, children, footer }: { title: string; righ
   );
 }
 
+/** 主ボタン。フロアと同じ紺の、角ばったボタン */
 export function PrimaryButton({ children, onClick, disabled }: { children: ReactNode; onClick: () => void; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="w-full rounded-full border-2 border-blue-600 bg-blue-50 py-3 font-bold text-slate-900 active:bg-blue-100 disabled:border-slate-300 disabled:bg-slate-50 disabled:text-slate-400"
+      className="min-h-12 w-full border-2 border-[#14203a] bg-[#2b4c7e] px-3 py-2 font-bold text-white shadow-[0_3px_0_#14203a] active:translate-y-0.5 active:shadow-none disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
     >
       {children}
     </button>

@@ -158,6 +158,16 @@ export function Floor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payKey]);
 
+  // 月次報告で入った契約料を、フロアに戻ったときに知らせる
+  useEffect(() => {
+    if (!state.income) return;
+    setToast(state.income);
+    state.notifyIncome(null);
+    const t = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.income]);
+
   // 人物のひとこと（タップで出て、3秒で消える）
   useEffect(() => {
     if (!talk) return;

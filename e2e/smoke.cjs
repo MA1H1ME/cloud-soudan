@@ -39,7 +39,7 @@ const out = process.env.E2E_OUT;
     const grade = await page.locator('.stamp').getAttribute('aria-label');
     console.log(who, 'grade', grade);
     if (!grade) throw new Error(`${who}: 月次レポートが出ませんでした`);
-    await page.getByRole('button', { name: /(翌月へ進む|契約)/ }).click();
+    await page.getByRole('button', { name: /^(翌月へ|契約を完了する)$/ }).click();
   };
   await page.goto(URL);
   await page.getByText('はじめから').click();

@@ -43,12 +43,20 @@ export function Report({ customerId }: { customerId: string }) {
   const fee = contractFeeFor(state, customerId, result.grade);
   const missed = missedRequirements(sim, save);
   const next = () => {
+    if (fee > 0) state.notifyIncome(`💰 ${name}さんから入金 +${yen(fee + (result.grade === 'best' ? BEST_BONUS : 0))}`);
     state.next(customerId, result.grade);
     go({ name: 'floor' });
   };
 
   return (
-    <Screen title={`月次レポート：${save.month}か月目`} footer={<PrimaryButton onClick={next}>{planFor(sim, save.month + 1) ? '翌月へ進む' : '契約を完了する'}{result.grade !== 'fail' ? `（契約料 +${yen(fee)}${result.grade === 'best' ? `、ボーナス +${yen(BEST_BONUS)}` : ''}）` : '（契約料なし）'}</PrimaryButton>}>
+    <Screen title={`月次レポート：${name}さん ${save.month}か月目`} back={false} footer={
+      <div className="space-y-1">
+        <p className="text-center text-xs text-slate-600">
+          {result.grade !== 'fail' ? <>入金：契約料 <b className="text-slate-900">+{yen(fee)}</b>{result.grade === 'best' && <>　ボーナス <b className="text-slate-900">+{yen(BEST_BONUS)}</b></>}</> : '目標を達成できなかったので、今月の契約料は入りません'}
+        </p>
+        <PrimaryButton onClick={next}>{planFor(sim, save.month + 1) ? '翌月へ' : '契約を完了する'}</PrimaryButton>
+      </div>
+    }>
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <Voice name={name} mood={result.grade === 'best' ? 'happy' : result.grade === 'good' ? 'normal' : 'troubled'}>{sim.comments[result.grade]}</Voice>
@@ -136,12 +144,16 @@ export function Report({ customerId }: { customerId: string }) {
             if (!rule) return null;
             const good = rule.tone === 'good';
             return (
-              <li key={f.ruleId} className={`rounded-xl border px-3 py-2 text-sm ${good ? 'border-emerald-300' : 'border-red-300'}`}>
-                <p className="text-[11px] text-slate-500">{f.day}日目・{f.label}</p>
-                <p className="font-bold text-slate-900"><span className={good ? 'text-emerald-700' : 'text-red-700'}>{good ? '＋' : '−'}</span> {rule.headline}</p>
-                <p className="mt-1 text-slate-800">{rule.explanation}</p>
-                <p className="mt-1 rounded bg-slate-100 px-2 py-1 text-xs text-slate-700"><b>試験では：</b>{rule.examPoint}</p>
-                <RuleSources rule={rule} />
+              <li key={f.ruleId}>
+                <details open={!good} className={`border-2 px-3 py-2 text-sm ${good ? 'border-emerald-300' : 'border-red-300'}`}>
+                  <summary className="cursor-pointer list-none">
+                    <span className="block text-[11px] text-slate-500">{f.day}日目・{f.label}　<span className="text-cyan-700">▼ 理由</span></span>
+                    <span className="font-bold text-slate-900"><span className={good ? 'text-emerald-700' : 'text-red-700'}>{good ? '＋' : '−'}</span> {rule.headline}</span>
+                  </summary>
+                  <p className="mt-1 text-slate-800">{rule.explanation}</p>
+                  <p className="mt-1 rounded bg-slate-100 px-2 py-1 text-xs text-slate-700"><b>試験では：</b>{rule.examPoint}</p>
+                  <RuleSources rule={rule} />
+                </details>
               </li>
             );
           })}

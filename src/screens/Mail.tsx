@@ -2,7 +2,7 @@
 // 本編の依頼（作り込んだお客さん）、復習のスポット案件、日々の案件メール（自動で組み合わせたもの）の3種類。
 import { useState } from 'react';
 import { spotById } from '../content';
-import { PrimaryButton, Screen, yen } from '../components/ui';
+import { Screen, yen } from '../components/ui';
 import { go } from '../router';
 import { businessFor, jobFor, nameFor } from '../jobs';
 import { MAX_RACKS, RACK_PRICE, SPOT_REWARD, dueSpots, inbox, onRacks, pendingRequests, useSave } from '../store';
@@ -38,8 +38,7 @@ export function Mail() {
   };
 
   return (
-    <Screen title="メール" right={<button type="button" onClick={() => go({ name: 'floor' })} className="text-sm text-slate-500 underline">フロア</button>}
-      footer={<PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton>}>
+    <Screen title="メール">
       <section className="flex items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-sm">
         <span>空きラック <b className={free > 0 ? 'text-emerald-700' : 'text-red-700'}>{free}</b>／{state.racks}台</span>
         {state.racks < MAX_RACKS ? (

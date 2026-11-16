@@ -83,7 +83,7 @@ export function BlueprintView({ blueprint, selected, onSelect }: { blueprint: Bl
               stroke={part ? (on ? C : L) : C} strokeWidth={on ? 2.5 : 1.25} strokeDasharray={part ? undefined : '4 3'}
             />
             <text x={b.x + b.w / 2} y={b.y + b.h / 2 + 4} textAnchor="middle" fontSize={part ? 12 : 15} fontWeight="600" fill={part ? L : C} fontFamily={MONO}>
-              {part ? SHORT[part] : '+'}
+              {part ? SHORT[part] : onSelect ? '+' : ''}
             </text>
           </g>
         );

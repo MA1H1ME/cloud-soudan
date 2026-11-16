@@ -35,7 +35,7 @@ export function SpotScreen({ spotId, practice }: { spotId: string; practice: boo
   return (
     <Screen
       title={`スポット案件：${spot.guest}`}
-      right={practice ? <span className="text-xs text-slate-500">練習</span> : undefined}
+      right={practice ? <span className="text-xs text-slate-300">練習</span> : undefined}
       footer={outcome ? <PrimaryButton onClick={back}>{practice ? '記録に戻る' : 'フロアに戻る'}</PrimaryButton> : <PrimaryButton onClick={submit} disabled={!choice}>この対応で1か月を回す</PrimaryButton>}
     >
       {!outcome && <Senpai tip="spot" />}
@@ -78,6 +78,19 @@ export function SpotScreen({ spotId, practice }: { spotId: string; practice: boo
       </div>
       <p className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-slate-900"><b>目標：</b>{spot.goal}</p>
 
+      <section className="space-y-2">
+        <h2 className="text-sm font-bold text-slate-900">どう対応する？（1つだけ）</h2>
+        {spot.options.map((o) => (
+          <button
+            key={o.id} type="button" aria-pressed={choice === o.id} disabled={answered}
+            onClick={() => setChoice(o.id)}
+            className={`min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm text-slate-900 ${choice === o.id ? 'border-2 border-blue-600 bg-blue-50 font-bold' : 'border border-slate-300'}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </section>
+      <p className="text-xs text-slate-500">選ぶと、下の構成図に反映されます。</p>
       {bp.site !== 'none' ? <StaticView blueprint={bp} /> : <BlueprintView blueprint={bp} />}
       <p className="text-center text-xs text-slate-500">
         月額 {yen(fixedCost(bp, spot.month))}／予算 {yen(spot.plan.budget)}
@@ -86,18 +99,6 @@ export function SpotScreen({ spotId, practice }: { spotId: string; practice: boo
         {spot.files && { 'access-key': '・アクセスキーを保存', 'role-full': '・IAMロール（フルアクセス）', 'role-scoped': '・IAMロール（必要な分だけ）' }[bp.credential]}
       </p>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-bold text-slate-900">どう対応する？（1つだけ）</h2>
-        {spot.options.map((o) => (
-          <button
-            key={o.id} type="button" aria-pressed={choice === o.id} disabled={answered}
-            onClick={() => setChoice(o.id)}
-            className={`w-full rounded-lg px-3 py-2 text-left text-sm text-slate-900 ${choice === o.id ? 'border-2 border-blue-600 bg-blue-50 font-bold' : 'border border-slate-300'}`}
-          >
-            {o.label}
-          </button>
-        ))}
-      </section>
     </Screen>
   );
 }

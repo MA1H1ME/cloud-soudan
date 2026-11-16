@@ -26,7 +26,7 @@ export function Hearing({ customerId }: { customerId: string }) {
   return (
     <Screen
       title={`ヒアリング：${name}さん`}
-      right={<span className="text-sm font-bold text-teal-700">質問 あと{left}回</span>}
+      right={<span className="text-sm font-bold text-yellow-300">質問 あと{left}回</span>}
       footer={<PrimaryButton onClick={next}>{left > 0 ? 'ヒアリングを切り上げて ② 設計へ' : '② 設計へ進む'}</PrimaryButton>}
     >
       <StepBar customerId={customerId} current="hearing" />
