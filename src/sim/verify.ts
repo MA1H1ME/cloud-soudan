@@ -53,6 +53,10 @@ function judge(check: CheckType, bp: Blueprint, plan: MonthPlan, profitPerVisit:
       return bp.credential === 'role-scoped'
         ? { ok: true, detail: '権限は、検査結果のバケットへの必要な操作だけです' }
         : { ok: false, detail: bp.credential === 'role-full' ? 'ロールに S3 のフルアクセスが付いていて、関係のないバケットにも届きます' : 'アクセスキーに広い権限が付いています' };
+    case 'reads':
+      return bp.slots['data-c'] === 'rds-replica'
+        ? { ok: true, detail: 'リードレプリカが読み取りを受けるので、集計で本体が重くなりません' }
+        : { ok: false, detail: bp.slots['data-c'] === 'rds-standby' ? 'スタンバイは読み取りに使えません。集計の読み込みは本体にかかります' : '読み取りを受ける複製がなく、集計の読み込みは本体にかかります' };
     case 'secure-db':
       return dbExposed(bp)
         ? { ok: false, detail: 'パブリックアクセスが有効で、セキュリティグループが 0.0.0.0/0 からの接続を許可しています' }

@@ -24,7 +24,7 @@ export const blueprintSchema = z.object({
 });
 export type Blueprint = z.infer<typeof blueprintSchema>;
 
-export const eventTypeSchema = z.enum(['spike', 'db-failure', 'az-outage', 'probe', 'bucket-probe', 'audit', 'https-check', 'storage-review', 'invoice']);
+export const eventTypeSchema = z.enum(['spike', 'db-failure', 'az-outage', 'probe', 'bucket-probe', 'audit', 'https-check', 'storage-review', 'invoice', 'read-surge']);
 export type EventType = z.infer<typeof eventTypeSchema>;
 
 export const monthPlanSchema = z.object({
@@ -45,7 +45,7 @@ export const monthPlanSchema = z.object({
 });
 export type MonthPlan = z.infer<typeof monthPlanSchema>;
 
-export const checkTypeSchema = z.enum(['budget', 'data', 'downtime', 'peak', 'secure-db', 's3-private', 'no-keys', 'least-privilege', 'https', 'storage']);
+export const checkTypeSchema = z.enum(['budget', 'data', 'downtime', 'peak', 'secure-db', 's3-private', 'no-keys', 'least-privilege', 'https', 'storage', 'reads']);
 export type CheckType = z.infer<typeof checkTypeSchema>;
 
 // ヒアリング：用意した質問から選んで聞き、要件メモを埋める。会話は事前に作成したものだけ。

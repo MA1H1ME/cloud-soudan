@@ -207,3 +207,18 @@ describe('障害対応', () => {
     expect(sg.net).toBeGreaterThan(pw.net);
   });
 });
+
+describe('読み込みの急増', () => {
+  const plan = { ...month(1), events: [{ day: 20, type: 'read-surge' as const, label: '月末の集計', days: 3 }] };
+  it('リードレプリカがあれば重くならない', () => {
+    const r = runMonth(k.profitPerVisit, plan, bp({ 'data-c': 'rds-replica' }));
+    expect(ids(r)).toContain('db-replica-read');
+    expect(r.slowDays).toBe(0);
+  });
+  it('スタンバイは読み取りに使えないので、3日間重くなる', () => {
+    const r = runMonth(k.profitPerVisit, plan, bp({ 'data-c': 'rds-standby' }));
+    expect(ids(r)).toContain('db-read-bottleneck');
+    expect(r.slowDays).toBe(3);
+    expect(r.kpi.performance).toBe(false);
+  });
+});
