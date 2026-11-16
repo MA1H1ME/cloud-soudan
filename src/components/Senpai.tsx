@@ -48,7 +48,7 @@ export function Senpai({ tip }: { tip: string }) {
         <button
           type="button"
           onClick={() => (last ? dismiss(tip) : setLine(line + 1))}
-          className="rounded bg-emerald-700 px-3 py-1 text-xs font-bold text-white"
+          className="min-h-11 min-w-20 rounded bg-emerald-700 px-4 py-2 text-sm font-bold text-white"
         >
           {last ? 'わかった' : '次へ ▶'}
         </button>

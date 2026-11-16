@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { content, ruleById } from '../content';
 import { RuleSources } from '../components/RuleSources';
-import { PrimaryButton, Screen } from '../components/ui';
+import { Screen } from '../components/ui';
 import { INTERVAL_DAYS } from '../engine/review';
 import { go } from '../router';
 import { today, useSave } from '../store';
@@ -21,7 +21,7 @@ export function Record() {
   const simConcepts = content.concepts.filter((c) => content.rules.some((r) => r.conceptId === c.id));
 
   return (
-    <Screen title="学習記録" footer={<PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton>}>
+    <Screen title="学習記録">
       <section>
         <h2 className="mb-2 text-sm font-bold text-slate-700">試験の分野ごとの進み具合</h2>
         <ul className="space-y-2">

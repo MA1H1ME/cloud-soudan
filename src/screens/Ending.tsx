@@ -24,7 +24,7 @@ export function Ending() {
   const done = () => { state.seeEnding(); go({ name: 'floor' }); };
 
   return (
-    <Screen title="本編クリア" footer={<PrimaryButton onClick={done}>このまま会社を続ける</PrimaryButton>}>
+    <Screen title="本編クリア" back={false} footer={<PrimaryButton onClick={done}>このまま会社を続ける</PrimaryButton>}>
       <div className="flex items-start gap-2">
         <SenpaiFace size={48} />
         <p className="flex-1 rounded-2xl rounded-tl-sm bg-emerald-50 px-3 py-2 text-sm leading-relaxed text-slate-900">

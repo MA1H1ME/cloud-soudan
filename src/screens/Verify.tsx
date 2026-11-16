@@ -34,7 +34,7 @@ export function Verify({ customerId }: { customerId: string }) {
   return (
     <Screen
       title={`検証：${name}さんの構成`}
-      right={<span className="text-sm font-bold text-teal-700">{passed}／{checks.length} 合格</span>}
+      right={<span className="text-sm font-bold text-yellow-300">{passed}／{checks.length} 合格</span>}
       footer={
         <div className="space-y-2">
           {!clean && <PrimaryButton onClick={() => go({ name: 'build', customerId })}>③ 構築に戻って直す</PrimaryButton>}

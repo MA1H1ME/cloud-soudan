@@ -46,11 +46,25 @@ export function businessFor(id: string): string {
 
 export const isStory = (id: string) => simByCustomer.has(id);
 
-/** その日に届く案件メール（2〜3件）。日付と段階から決まる */
-export function mailsForDay(day: number, stage: number, sales = false): string[] {
+/**
+ * その日に届く案件メール。日付と段階から決まる。
+ * 慣れるまで（early）は1日1件、そのあとは2〜3件（営業担当がいれば＋1）。同じ業種・種類・難しさの案件は1日に1件まで。
+ */
+export function mailsForDay(day: number, stage: number, sales = false, early = false): string[] {
   const r = rng(day * 9973 + 17);
-  const n = r.int(2, 3) + (sales ? 1 : 0);
-  return Array.from({ length: n }, (_, i) => jobId(day * 10 + i, stage));
+  const n = early ? 1 : r.int(2, 3) + (sales ? 1 : 0);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < 10 && out.length < n; i++) {
+    const id = jobId(day * 10 + i, stage);
+    const job = jobFor(id);
+    if (!job) continue;
+    const sig = `${job.business}/${job.kind}/${job.level}`;
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    out.push(id);
+  }
+  return out;
 }
 
 /** メールの期限（届いた日を含めて何日残るか） */

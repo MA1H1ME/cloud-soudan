@@ -9,7 +9,7 @@ import { Term } from '../components/Term';
 import type { Blueprint, PartType } from '../sim/schema';
 import { ticketsFrom } from '../sim/tickets';
 import {
-  MAIL_STAGE, RANKS, STAFF, rankOf, customerSave, dayOf, dueSpots, inbox, onRacks, pastResults, pendingRequests, planFor, runningResult, unlockStage, useSave,
+  MAIL_STAGE, RANKS, STAFF, calendar, rankOf, customerSave, dayOf, dueSpots, inbox, onRacks, pastResults, pendingRequests, planFor, runningResult, unlockStage, useSave,
   type CustomerSave,
 } from '../store';
 import { Desk, MONO, Person, PX, Tiles } from '../components/pixel';
@@ -44,6 +44,14 @@ function rackItems(bp: Blueprint, result: MonthResult | undefined, day: number):
   if (s['data-c']) items.push({ label: SHORT[s['data-c']], led: 'g' });
   return items;
 }
+
+/** オフィスの席。あなた（青）と鷹野先輩（緑）は最初から、運用担当と営業担当は雇うと座る */
+const OFFICE = [
+  { id: 'you', name: 'あなた', x: 8, shirt: '#4f7fd8' },
+  { id: 'senpai', name: '鷹野先輩', x: 76, shirt: '#2f7d5b' },
+  { id: 'ops', name: `${STAFF.ops.name}（運用）`, x: 144, shirt: '#7a4fd8' },
+  { id: 'sales', name: `${STAFF.sales.name}（営業）`, x: 212, shirt: '#d84f7a' },
+] as const;
 
 interface Rack {
   id: string;
@@ -86,7 +94,8 @@ export function Floor() {
   const lastSpeed = useRef(1);
   useEffect(() => { if (speed > 0) lastSpeed.current = speed; }, [speed]);
   const rank = rankOf(state.revenue);
-  const lastRank = useRef(rank);
+  const [celebrate, setCelebrate] = useState<number | null>(null);
+  const [talk, setTalk] = useState<{ who: string; text: string } | null>(null);
 
   const racks = racksOf(state);
   // 時間を止める日：どこかのラックで判断が要る日か、月末
@@ -123,16 +132,48 @@ export function Floor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.clock, state.staff.ops]);
 
+  // ランクアップ：見せたことのないランクに上がっていたら、お祝いの画面を出す（古いセーブは今のランクから）
   useEffect(() => {
-    if (rank > lastRank.current) {
+    if (state.seenRank === undefined) { state.setSeenRank(rank); return; }
+    if (rank > state.seenRank) {
       sfx.fanfare();
-      setToast(`🎉 会社が「${RANKS[rank]!.name}」になりました！`);
-      const t = setTimeout(() => setToast(null), 3000);
-      lastRank.current = rank;
+      setCelebrate(rank);
+      setSpeed(0);
+      state.setSeenRank(rank);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rank, state.seenRank]);
+
+  // 給料日を知らせる
+  const payKey = state.lastPay ? `${state.lastPay.day}` : '';
+  const lastPayKey = useRef(payKey);
+  useEffect(() => {
+    if (payKey && payKey !== lastPayKey.current && state.lastPay) {
+      setToast(`💴 給料日：社員に ${yen(state.lastPay.amount)} を払いました`);
+      const t = setTimeout(() => setToast(null), 2600);
+      lastPayKey.current = payKey;
       return () => clearTimeout(t);
     }
-    lastRank.current = rank;
-  }, [rank]);
+    lastPayKey.current = payKey;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payKey]);
+
+  // 月次報告で入った契約料を、フロアに戻ったときに知らせる
+  useEffect(() => {
+    if (!state.income) return;
+    setToast(state.income);
+    state.notifyIncome(null);
+    const t = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.income]);
+
+  // 人物のひとこと（タップで出て、3秒で消える）
+  useEffect(() => {
+    if (!talk) return;
+    const t = setTimeout(() => setTalk(null), 3000);
+    return () => clearTimeout(t);
+  }, [talk]);
 
   useEffect(() => {
     if (speed === 0) return;
@@ -161,13 +202,12 @@ export function Floor() {
   useEffect(() => {
     if (storyDone && !state.endingSeen) go({ name: 'ending' });
   }, [storyDone, state.endingSeen]);
-  if (!company) return null;
-
   // 運用担当がいれば、前に正しく対応できた種類の障害は代わりに対応する
   const canDelegate = (inc?: Incident) => Boolean(inc && state.staff.ops && state.learned.includes(inc.type));
   const blockingRack = racks.find((r) => r.blocking && !canDelegate(r.blocking));
   const blockingKey = blockingRack ? `${blockingRack.id}-${blockingRack.blocking!.key}` : '';
   useEffect(() => { if (blockingKey) sfx.alarm(); }, [blockingKey]);
+  if (!company) return null;
   const reportRack = racks.find((r) => r.reportReady);
   const MAIN = outcome?.id ?? blockingRack?.id ?? (racks.some((r) => r.id === state.active) ? state.active! : racks[0]?.id ?? '');
   const main = racks.find((r) => r.id === MAIN);
@@ -217,6 +257,14 @@ export function Floor() {
           ? tickets.length > 0 ? '先月の課題を見て、設計図か構築で直してから月を始めよう。' : `構成がよければ、${name}さんの月を始めよう。`
           : free > 0 && unread > 0 && stage >= MAIL_STAGE ? `ラックが${free}台空いている。メールの案件を受ければ、同時に回せるぞ。` : '時間を進めて、ラックの様子を見守ろう。';
 
+  // 何も動いていないのに、やることが残っているときは時間を進めさせない（メールが期限切れで消えないように）
+  const idleWithWork = racks.every((r) => !r.save.running) && (unread > 0 || racks.length > 0);
+  const lineFor = (id: string) =>
+    id === 'senpai' ? nextStep
+      : id === 'ops' ? `任せてください。覚えた障害対応は${state.learned.length}種類。その種類なら、私が代わりに対応します。`
+        : id === 'sales' ? `案件メール、集めてきました！ 未読は${unread}件です。`
+          : `${calendar(state.clock).label}。ラックは${racks.length}／${state.racks}台が稼働中。`;
+
   // ラックの並び（台数に合わせて幅を変える）
   const rw = Math.min(56, Math.floor((W - 16 - (state.racks - 1) * 6) / state.racks));
   const gap = (W - rw * state.racks) / (state.racks + 1);
@@ -224,10 +272,10 @@ export function Floor() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-slate-900">
       <header className="flex items-center justify-between px-3 py-2 text-sm text-white" style={{ background: '#1b2333', fontFamily: MONO }}>
-        <span>{state.clock}日目</span>
+        <span>{calendar(state.clock).label}</span>
         <span className="font-bold text-yellow-300">{yen(company.cash)}</span>
         <span className="text-yellow-300" aria-label={`会社のランク ${RANKS[rank]!.name}`}>{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>
-        <button type="button" onClick={() => { setSpeed(0); setMenu(true); }} aria-label="メニュー" className="px-1 text-base text-white">☰</button>
+        <button type="button" onClick={() => { setSpeed(0); setMenu(true); }} aria-label="メニュー" className="-my-2 -mr-2 h-11 w-11 text-lg text-white">☰</button>
       </header>
       <p className="truncate px-3 py-1 text-[11px] text-slate-300" style={{ background: '#1b2333' }}>{company.name}（{RANKS[rank]!.name}）　ラック {racks.length}／{state.racks}</p>
       {menuSheet}
@@ -238,12 +286,31 @@ export function Floor() {
           <Tiles x={0} y={120} cols={18} rows={12} a={PX.s1} b={PX.s2} />
           <rect x="0" y="112" width="128" height="8" fill={PX.wall} />
           <rect x="160" y="112" width="128" height="8" fill={PX.wall} />
-          <Desk x={16} y={22} /><Desk x={92} y={22} /><Desk x={168} y={22} />
-          <Person x={35} y={46} shirt="#4f7fd8" />
+          {/* 机は4つ：あなた・鷹野先輩・運用担当・営業担当。雇っていない席は空席 */}
+          {OFFICE.map((o) => <Desk key={o.id} x={o.x} y={22} />)}
+          {OFFICE.map((o) => {
+            const present = o.id === 'you' || o.id === 'senpai' || state.staff[o.id as 'ops' | 'sales'];
+            if (!present) {
+              return <text key={o.id} x={o.x + 24} y="64" textAnchor="middle" fontSize="8" fill={PX.deskD}>空席</text>;
+            }
+            const running = o.id === 'senpai' && alarm;
+            const speak = () => { setSpeed(0); setTalk({ who: o.id, text: lineFor(o.id) }); };
+            return (
+              <g key={o.id} role="button" tabIndex={0} aria-label={`${o.name}（話しかける）`} style={{ cursor: 'pointer' }} onClick={speak} onKeyDown={(e) => e.key === 'Enter' && speak()}>
+                <g className={running ? 'runner' : undefined}>
+                  <Person x={o.x + 19} y={running ? 72 : 46} shirt={o.shirt} />
+                  {running && <g className="bob"><rect x={o.x + 21} y="56" width="12" height="12" fill={PX.y} /><text x={o.x + 27} y="66" textAnchor="middle" fontSize="11" fontWeight="700" fill={PX.ink}>!</text></g>}
+                </g>
+                <rect x={o.x + 6} y={running ? 98 : 72} width="36" height="11" fill={o.id === 'you' ? PX.btn : PX.box} opacity="0.85" />
+                <text x={o.x + 24} y={running ? 106 : 80} textAnchor="middle" fontSize="7.5" fill={PX.w}>{o.id === 'you' ? '▼あなた' : o.name}</text>
+                <rect x={o.x + 8} y={running ? 70 : 44} width="32" height="40" fill="transparent" />
+              </g>
+            );
+          })}
           {/* 自分の机のPC：押すとメールが開く */}
           <g role="button" tabIndex={0} aria-label={`PC（メールを開く。未読 ${unread} 件）`} style={{ cursor: 'pointer' }}
             onClick={() => { setSpeed(0); go({ name: 'mail' }); }} onKeyDown={(e) => e.key === 'Enter' && go({ name: 'mail' })}>
-            <rect x="26" y="14" width="30" height="24" fill="transparent" />
+            <rect x="8" y="14" width="48" height="24" fill="transparent" />
             {unread > 0 && (
               <g className="bob">
                 <rect x="44" y="6" width="16" height="11" fill={PX.w} stroke={PX.r} strokeWidth="1.5" />
@@ -253,17 +320,21 @@ export function Floor() {
               </g>
             )}
           </g>
-          {alarm ? (
-            <g className="runner">
-              <Person x={136} y={84} shirt="#e8a33d" />
-              <g className="bob"><rect x="138" y="68" width="12" height="12" fill={PX.y} /><text x="144" y="78" textAnchor="middle" fontSize="11" fontWeight="700" fill={PX.ink}>!</text></g>
-            </g>
-          ) : (
-            <Person x={111} y={46} shirt="#e8a33d" />
-          )}
-          {state.staff.ops && <Person x={187} y={46} shirt="#7a4fd8" />}
-          {state.staff.sales && <Person x={214} y={80} shirt="#d84f7a" />}
-          <rect x="244" y="66" width="12" height="10" fill={PX.pot} /><rect x="240" y="52" width="20" height="14" fill={PX.plant} />
+          <rect x="270" y="66" width="10" height="10" fill={PX.pot} /><rect x="267" y="54" width="16" height="12" fill={PX.plant} />
+          {talk && (() => {
+            const o = OFFICE.find((x) => x.id === talk.who)!;
+            const bx = Math.min(W - 150, Math.max(4, o.x - 40));
+            return (
+              <g className="sheet-in" aria-live="polite">
+                <rect x={bx} y="86" width="146" height="24" rx="3" fill={PX.w} stroke={PX.ink} strokeWidth="1" />
+                <path d={`M${o.x + 24} 86l-4 -6l8 0z`} fill={PX.w} stroke={PX.ink} strokeWidth="1" />
+                <foreignObject x={bx + 3} y="87" width="140" height="22">
+                  <p style={{ fontSize: 7.5, lineHeight: 1.25, color: PX.ink, margin: 0 }}>{talk.text}</p>
+                </foreignObject>
+              </g>
+            );
+          })()}
+
 
           {Array.from({ length: state.racks }, (_, i) => {
             const rack = racks[i];
@@ -274,13 +345,15 @@ export function Floor() {
             const i0 = Math.max(0, rack ? rack.day - 1 : 0);
             const hot = rack?.result && rack.day > 0 && (rack.result.up[i0]! < 1 || rack.result.load[i0]! > rack.result.cap[i0]!);
             const label = rack ? nameFor(rack.id).split(' ')[0]! : '空き';
-            const status = !rack ? '' : rack.reportReady ? '報告' : rack.save.running ? `${rack.day}日` : rack.save.phase !== 'operate' ? '案件中' : '待機';
+            const status = !rack ? 'メールで受注' : rack.reportReady ? '報告' : rack.save.running ? `${rack.day}/30日` : rack.save.phase !== 'operate' ? '案件中' : '待機';
             const onClick = rack ? () => { setSpeed(0); state.setActive(rack.id); } : () => { setSpeed(0); go({ name: 'mail' }); };
             return (
               <g key={i} role="button" tabIndex={0} style={{ cursor: 'pointer' }} onClick={onClick} onKeyDown={(e) => e.key === 'Enter' && onClick()}
                 aria-label={rack ? `${nameFor(rack.id)}さんのラック${active ? '（担当中）' : '（担当を切り替える）'}` : '空きラック（メールを開く）'}>
                 {hot && <rect x={x - 4} y="136" width={rw + 8} height="104" fill={PX.r} fillOpacity="0.35" className="blink" />}
-                <rect x={x} y="140" width={rw} height="96" fill={PX.rack} opacity={rack ? 1 : 0.5} stroke={active ? PX.y : undefined} strokeWidth="2" />
+                {rack
+                  ? <rect x={x} y="140" width={rw} height="96" fill={PX.rack} stroke={active ? PX.y : undefined} strokeWidth="2" />
+                  : <rect x={x + 1} y="141" width={rw - 2} height="94" fill="transparent" stroke={PX.smoke} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6" />}
                 {items.slice(0, 5).map((it, k) => (
                   <g key={k}>
                     <rect x={x + 3} y={145 + k * 18} width={rw - 6} height="15" fill={PX.slot} />
@@ -288,7 +361,12 @@ export function Floor() {
                     <rect x={x + rw - 9} y={150 + k * 18} width="4" height="4" fill={PX[it.led]} className={it.led === 'r' ? 'blink' : undefined} />
                   </g>
                 ))}
-                {!rack && <text x={x + rw / 2} y="192" textAnchor="middle" fontSize="9" fill={PX.smoke}>空き</text>}
+                {!rack && <text x={x + rw / 2} y="194" textAnchor="middle" fontSize="18" fill={PX.smoke} opacity="0.7">＋</text>}
+                {rack?.result && rack.day > 0 && speed > 0 && !hot && rack.result.earnedByDay[rack.day - 1]! > 0 && (
+                  <text key={`m${rack.day}`} x={x + rw / 2} y="134" textAnchor="middle" fontSize="9" fontWeight="700" fill={PX.y} fontFamily={MONO} className="popup">
+                    +{yen(rack.result.earnedByDay[rack.day - 1]!)}
+                  </text>
+                )}
                 {rack && !isStory(rack.id) && <text x={x + rw - 4} y="134" textAnchor="end" fontSize="8" fill={PX.y}>{'★'.repeat(jobFor(rack.id)?.level ?? 1)}</text>}
                 <text x={x + rw / 2} y="252" textAnchor="middle" fontSize="10" fontWeight={active ? 700 : 400} fill={hot ? PX.r : PX.w}>{label}</text>
                 <text x={x + rw / 2} y="266" textAnchor="middle" fontSize="8" fill={rack?.reportReady ? PX.y : PX.smoke} fontFamily={MONO}>{status}</text>
@@ -310,7 +388,7 @@ export function Floor() {
             {recent.filter((f) => f.day === latest.day).map((f) => <p key={f.ruleId} className="text-slate-800">{ruleById.get(f.ruleId)?.headline}</p>)}
           </div>
         )}
-        {toast && <p className="absolute bottom-2 left-3 right-3 border-2 border-yellow-300 bg-slate-900 px-3 py-2 text-center text-sm text-white" role="status">{toast}</p>}
+        {toast && <p className="absolute left-3 right-3 top-2 z-10 border-2 border-yellow-300 bg-slate-900 px-3 py-2 text-center text-sm text-white" role="status">{toast}</p>}
       </div>
 
       {stage >= MAIL_STAGE && <div className="px-3 pt-2"><Senpai tip="mail-start" /></div>}
@@ -328,14 +406,19 @@ export function Floor() {
       {main && plan && (
         <section className="space-y-2 border-t-2 border-white px-3 py-3 text-white" style={{ background: PX.box }}>
           <p className="text-xs font-bold text-yellow-300">☎ {name}さん（{jobFor(MAIN) ? `${jobFor(MAIN)!.business}・1か月契約` : `${main.save.month}か月目`}）</p>
-          {before && <p className="text-sm leading-relaxed">{plan.brief}</p>}
+          {before && (
+            <details className="text-sm leading-relaxed">
+              <summary className="cursor-pointer text-[13px] text-slate-200">今月のお客さんの声を読む</summary>
+              <p className="mt-1">{plan.brief}</p>
+            </details>
+          )}
           {before && tickets.map((t) => <p key={t.id} className="border border-red-400 px-2 py-1 text-xs text-red-200">先月の課題：{t.voice}</p>)}
           <p className="text-[11px] text-slate-300">
             予算 {yen(plan.budget)}／稼働率 {(plan.uptimeTarget * 100).toFixed(1)}%以上／1日の訪問 {plan.visitsPerDay.toLocaleString('ja-JP')}
           </p>
           {result && (
             <p className="text-xs text-slate-300" style={{ fontFamily: MONO }}>
-              {day}日目　今月のもうけ <span className="font-bold text-yellow-300">{yen(result.earnedByDay.slice(0, day).reduce((a, b) => a + b, 0))}</span>　月額 {yen(result.fixedCost)}
+              {name}さん {day}/30日　お客さんの売上 <span className="font-bold text-yellow-300">{yen(result.earnedByDay.slice(0, day).reduce((a, b) => a + b, 0))}</span>　月額 {yen(result.fixedCost)}
             </p>
           )}
           {inCase ? (
@@ -352,15 +435,16 @@ export function Floor() {
 
       <SenpaiLine dark>{nextStep}</SenpaiLine>
 
-      <div className="mt-auto">
+      <div className="sticky bottom-0 z-20 mt-auto bg-slate-900/95 backdrop-blur">
         <div className="flex items-center justify-center gap-2 px-3 py-2" style={{ fontFamily: MONO }}>
           {([[0, '⏸ 停止'], [1, '▶ ×1'], [4, '▶▶ ×4']] as const).map(([s, label]) => (
-            <button key={s} type="button" aria-pressed={speed === s} onClick={() => setSpeed(s)} disabled={s > 0 && halted}
+            <button key={s} type="button" aria-pressed={speed === s} onClick={() => setSpeed(s)} disabled={s > 0 && (halted || idleWithWork)}
               className={`flex-1 py-2 text-sm disabled:opacity-40 ${speed === s ? 'bg-yellow-300 font-bold text-slate-900' : 'bg-slate-700 text-white'}`}>
               {label}
             </button>
           ))}
         </div>
+        {idleWithWork && <p className="px-3 text-center text-[11px] text-yellow-200">{racks.length ? 'お客さんの月を始めると、時間を進められます。' : 'メールで依頼を受けると、時間を進められます。'}</p>}
         {halted && !blockingRack && <p className="px-3 text-center text-[11px] text-yellow-200">月末の報告を読むと、時間を進められます。</p>}
         <nav className="grid grid-cols-4 gap-1 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1">
           {[
@@ -378,6 +462,19 @@ export function Floor() {
         </nav>
         <p className="px-3 pb-2 text-center text-[10px] text-slate-500">金額や処理能力はゲーム内の値です。</p>
       </div>
+
+      {celebrate !== null && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/80 px-6" role="dialog" aria-modal="true" aria-label="ランクアップ">
+          <div className="confetti" aria-hidden="true">{Array.from({ length: 24 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i % 6) * 0.15}s`, background: ['#ffd84d', '#4dff88', '#ff8a4d', '#7fd3ff'][i % 4] }} />)}</div>
+          <section className="sheet-in relative w-full max-w-xs border-4 border-yellow-300 px-4 py-5 text-center text-white" style={{ background: PX.box }}>
+            <p className="text-xs text-yellow-300" style={{ fontFamily: MONO }}>RANK UP!</p>
+            <p className="mt-1 text-2xl font-bold">{'★'.repeat(celebrate + 1)}</p>
+            <p className="mt-2 text-lg font-bold">「{RANKS[celebrate]!.name}」になりました</p>
+            <p className="mt-2 text-sm text-slate-200">お客さんからの評判が広がっています。{(Object.keys(STAFF) as ('ops' | 'sales')[]).filter((k) => !state.staff[k] && state.revenue >= STAFF[k].rank).map((k) => `${STAFF[k].title}を雇えます。`).join('')}</p>
+            <button type="button" onClick={() => setCelebrate(null)} className="mt-4 w-full py-2 font-bold text-slate-900" style={{ background: PX.y }}>やったね！</button>
+          </section>
+        </div>
+      )}
 
       {(blockingRack || outcome) && (
         <div className="fixed inset-0 z-30 flex items-end justify-center bg-slate-900/60">

@@ -12,7 +12,7 @@ export function CompanyScreen() {
   const nextPay = Math.ceil(state.clock / PAYDAY) * PAYDAY + 1;
 
   return (
-    <Screen title="会社" footer={<PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton>}>
+    <Screen title="会社">
       <section className="rounded-xl border border-slate-300 px-3 py-3 text-sm">
         <p className="text-xs text-slate-500">{company.name}</p>
         <p className="text-lg font-bold text-slate-900">{'★'.repeat(rank + 1)}{'☆'.repeat(4 - rank)}　{RANKS[rank]!.name}</p>

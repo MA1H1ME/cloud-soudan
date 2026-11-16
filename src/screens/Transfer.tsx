@@ -1,6 +1,6 @@
 // セーブの引き継ぎ：セーブデータを文字列にして書き出し、別の端末で読み込む。サーバーには送らない。
 import { useState } from 'react';
-import { PrimaryButton, Screen } from '../components/ui';
+import { Screen } from '../components/ui';
 import { go } from '../router';
 import { useSave } from '../store';
 
@@ -37,7 +37,7 @@ export function Transfer() {
   };
 
   return (
-    <Screen title="セーブの引き継ぎ" footer={<PrimaryButton onClick={() => (history.length > 1 ? history.back() : go({ name: 'title' }))}>戻る</PrimaryButton>}>
+    <Screen title="セーブの引き継ぎ" back={hasSave ? undefined : () => go({ name: 'title' })}>
       <p className="text-sm text-slate-700">セーブデータはこの端末のブラウザの中にだけあります。機種変更やブラウザのデータ削除の前に、ここで書き出しておくと、別の端末で続きから遊べます。</p>
       {hasSave && (
         <section className="space-y-2">

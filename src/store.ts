@@ -67,6 +67,8 @@ export const MAX_RACKS = 6;
 export const START_RACKS = 3;
 /** 案件メールが届き始める段階（柏木さんの2か月目から） */
 export const MAIL_STAGE = 2;
+/** 届いたメールがこの件数になるまでは、1日1件にする（慣れるまで） */
+export const EARLY_MAILS = 6;
 
 interface SaveState {
   company: Company | null;
@@ -90,6 +92,14 @@ interface SaveState {
   revenue: number;
   endingSeen: boolean;
   seeEnding: () => void;
+  /** お祝いを見せたランク（ランクアップの演出に使う） */
+  seenRank?: number;
+  setSeenRank: (rank: number) => void;
+  /** 直近の給料日（フロアで知らせる） */
+  lastPay: { day: number; amount: number } | null;
+  /** フロアに戻ったときに出す入金の知らせ（一度出したら消す） */
+  income: string | null;
+  notifyIncome: (text: string | null) => void;
   /** 効果音 */
   sound: boolean;
   setSound: (on: boolean) => void;
@@ -172,14 +182,18 @@ export const useSave = create<SaveState>()(
           if (day <= st.clock) return;
           const stage = unlockStage(st);
           const fresh = stage >= MAIL_STAGE
-            ? Array.from({ length: day - st.clock }, (_, i) => st.clock + 1 + i).flatMap((d) => mailsForDay(d, Math.min(3, stage), st.staff.sales).map((id) => ({ id, day: d })))
+            ? Array.from({ length: day - st.clock }, (_, i) => st.clock + 1 + i).flatMap((d) => mailsForDay(d, Math.min(3, stage), st.staff.sales, st.mailLog.length < EARLY_MAILS).map((id) => ({ id, day: d })))
             : [];
           // 古いメールは記録から落とす（受けたものは残す）
           const mailLog = [...st.mailLog, ...fresh].filter((m) => day - m.day < 30 || st.mailStatus[m.id] === 'accepted');
           // 30日ごとに給料を払う
           const paydays = Math.floor((day - 1) / PAYDAY) - Math.floor((st.clock - 1) / PAYDAY);
           const salary = paydays * payroll(st.staff);
-          set({ clock: day, mailLog, company: st.company && salary ? { ...st.company, cash: st.company.cash - salary } : st.company });
+          set({
+            clock: day, mailLog,
+            company: st.company && salary ? { ...st.company, cash: st.company.cash - salary } : st.company,
+            lastPay: salary ? { day, amount: salary } : st.lastPay,
+          });
         },
         acceptMail: (id) => {
           const st = get();
@@ -213,6 +227,10 @@ export const useSave = create<SaveState>()(
         revenue: 0,
         endingSeen: false,
         seeEnding: () => set({ endingSeen: true }),
+        setSeenRank: (rank) => set({ seenRank: rank }),
+        lastPay: null,
+        income: null,
+        notifyIncome: (text) => set({ income: text }),
         sound: true,
         setSound: (on) => { setSoundEnabled(on); set({ sound: on }); },
         hire: (kind) => {
@@ -223,7 +241,7 @@ export const useSave = create<SaveState>()(
           set({ staff: { ...st.staff, [kind]: true }, company: { ...st.company, cash: st.company.cash - s.hire } });
         },
         importSave: (data) => set({ ...data }),
-        newGame: (name) => set({ staff: { ops: false, sales: false }, learned: [], revenue: 0, endingSeen: false, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
+        newGame: (name) => set({ staff: { ops: false, sales: false }, learned: [], revenue: 0, endingSeen: false, seenRank: 0, lastPay: null, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
         answerSpot: (spotId, passed, firedRuleIds, practice) => {
           const spot = content.spots.find((x) => x.id === spotId);
           const st = get();
@@ -364,12 +382,13 @@ export function contractFeeFor(state: Pick<SaveState, 'customers' | 'staff'>, cu
   return Math.round(fee / 100) * 100;
 }
 
-/** 受信箱の案件メール（期限内で、まだ返事をしていないもの。新しい順） */
+/** 受信箱の案件メール（期限内で、まだ返事をしていないもの。期限の近い順） */
 export function inbox(state: Pick<SaveState, 'clock' | 'mailLog' | 'mailStatus'>): { id: string; day: number; left: number }[] {
   return state.mailLog
     .filter((m) => !state.mailStatus[m.id] && state.clock - m.day < MAIL_DAYS && simFor(m.id))
     .map((m) => ({ ...m, left: MAIL_DAYS - (state.clock - m.day) }))
-    .reverse();
+    // 期限の近い順（同じなら新しい順）
+    .sort((a, b) => a.left - b.left || b.day - a.day);
 }
 
 /** まだ受けていない本編の依頼（条件を満たして届いているもの） */
@@ -397,3 +416,12 @@ export function partUnlocked(state: Pick<SaveState, 'customers' | 'accepted'>, p
 // 保存してある設定を効果音に反映する
 useSave.persist.onFinishHydration((st) => setSoundEnabled(st.sound));
 setSoundEnabled(useSave.getState().sound);
+
+/** 会社の暦を「○月○日」で表す。1日目＝4月1日、30日でひと月（給料日の区切りと同じ） */
+export function calendar(clock: number): { year: number; month: number; date: number; label: string } {
+  const m = Math.floor((clock - 1) / 30);
+  const month = ((m + 3) % 12) + 1;
+  const year = Math.floor((m + 3) / 12) + 1;
+  const date = ((clock - 1) % 30) + 1;
+  return { year, month, date, label: `${year}年目 ${month}月${date}日` };
+}
