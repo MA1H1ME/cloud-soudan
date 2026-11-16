@@ -9,6 +9,12 @@ import { go } from '../router';
 import { radarScores } from '../sim/radar';
 import { Radar } from '../components/Radar';
 import { SLOW_DAYS_ALLOWED } from '../sim/parts';
+import { modelAnswer } from '../sim/generator';
+import { runMonth } from '../sim/engine';
+import { BlueprintView } from '../components/BlueprintView';
+import { StaticView } from '../components/StaticView';
+import { unlockedAt } from '../jobs';
+import { unlockStage } from '../store';
 import { BEST_BONUS, MISSED_FACTOR, contractFeeFor, customerSave, missedRequirements, planFor, runningResult, useSave } from '../store';
 
 export function Report({ customerId }: { customerId: string }) {
@@ -92,6 +98,26 @@ export function Report({ customerId }: { customerId: string }) {
           <div className="mt-1 flex justify-between border-t border-slate-200 pt-1.5 font-bold"><dt>手元に残った額</dt><dd className="text-base">{yen(result.net)}</dd></div>
         </dl>
       </section>
+
+      {result.grade !== 'best' && save.running && (() => {
+        const kind = save.running.site !== 'none' ? 'static' : 'web';
+        const model = modelAnswer(sim.profitPerVisit, plan, kind, unlockedAt(unlockStage(state)));
+        if (!model) return null;
+        const m = runMonth(sim.profitPerVisit, plan, { ...save.running, ...model });
+        return (
+          <details className="rounded-xl border border-emerald-400 px-3 py-2 text-sm">
+            <summary className="cursor-pointer font-bold text-emerald-800">模範の構成を見る（目標をすべて満たす、いちばん安い例）</summary>
+            <div className="mt-2 space-y-2">
+              {kind === 'static' ? <StaticView blueprint={model} /> : <BlueprintView blueprint={model} />}
+              <p className="text-xs text-slate-700">
+                月額 {yen(m.cost)}／予算 {yen(plan.budget)}・稼働率 {pct(m.uptime, 2)}・重かった日 {m.slowDays}日
+                {kind === 'web' && `・自動バックアップ ${model.backup ? 'あり' : 'なし'}${model.autoScaling ? '・Auto Scaling あり' : ''}・DB は外から届かない設定`}
+              </p>
+              <p className="text-[11px] text-slate-500">いま使える部品の中で、エンジンが総当たりで探した例です。正解は1つではありません。</p>
+            </div>
+          </details>
+        );
+      })()}
 
       <section>
         <h2 className="mb-2 text-sm font-bold text-slate-700">今月起きたことと、その理由</h2>
