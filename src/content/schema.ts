@@ -144,7 +144,19 @@ export const cardSchema = z.object({
 });
 export type Card = z.infer<typeof cardSchema>;
 
+export const glossarySchema = z.object({
+  id,
+  term: z.string().min(1),
+  short: z.string().min(1),
+  body: z.string().min(1),
+  play: z.string().min(1),
+  sources: z.array(sourceSchema).min(1),
+  review: z.object({ status: z.enum(['draft', 'verified']), verifiedAt: isoDate.optional() }),
+});
+export type GlossaryTerm = z.infer<typeof glossarySchema>;
+
 export interface ContentBundle {
+  glossary: GlossaryTerm[];
   scenarios: Scenario[];
   concepts: Concept[];
   customers: Customer[];

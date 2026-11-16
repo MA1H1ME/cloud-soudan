@@ -6,11 +6,14 @@ import { conceptById, content, ruleById, simByCustomer } from './content';
 import { addDays, enqueue, gameDate, INTERVAL_DAYS, onReviewAnswered, pickDueReviews, type ReviewItem } from './engine/review';
 import { DAYS, runMonth, type Grade, type MonthResult } from './sim/engine';
 import { LOCKED_SLOTS } from './sim/parts';
+import { UNLOCK_MONTH } from './guide';
 import type { Blueprint, MonthPlan, PartType, SimCustomer, Slot } from './sim/schema';
 
 export const START_CASH = 300000;
 export const BEST_BONUS = 10000;
 export const SPOT_REWARD = 5000;
+/** チュートリアルを兼ねる最初のお客さん */
+export const FIRST_CUSTOMER = 'kashiwagi';
 
 export const today = () => gameDate(new Date());
 
@@ -47,6 +50,11 @@ interface SaveState {
   review: Record<string, ReviewItem>;
   /** これまでに出会ったルール */
   seenRules: string[];
+  /** 閉じた先輩の案内 */
+  tips: string[];
+  dismissTip: (id: string) => void;
+  /** 案内をもう一度はじめから出す */
+  resetTips: () => void;
   answerSpot: (spotId: string, passed: boolean, firedRuleIds: string[], practice: boolean) => void;
   newGame: (name: string) => void;
   setSlot: (customerId: string, slot: Slot, part: PartType | null) => void;
@@ -89,7 +97,10 @@ export const useSave = create<SaveState>()(
         setCredential: (customerId, value) => update(customerId, (c) => (c.running ? c : { ...c, blueprint: { ...c.blueprint, credential: value } })),
         review: {},
         seenRules: [],
-        newGame: (name) => set({ company: { name, cash: START_CASH }, customers: {}, accepted: [], active: null, review: {}, seenRules: [] }),
+        tips: [],
+        dismissTip: (id) => set({ tips: [...new Set([...get().tips, id])] }),
+        resetTips: () => set({ tips: [] }),
+        newGame: (name) => set({ company: { name, cash: START_CASH }, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
         answerSpot: (spotId, passed, firedRuleIds, practice) => {
           const spot = content.spots.find((x) => x.id === spotId);
           const st = get();
@@ -108,6 +119,7 @@ export const useSave = create<SaveState>()(
         setSlot: (customerId, slot, part) =>
           update(customerId, (c) => {
             if (LOCKED_SLOTS.includes(slot) || c.running) return c;
+            if (part && !partUnlocked(get(), part)) return c;
             const slots = { ...c.blueprint.slots, [slot]: part };
             // Auto Scaling は ALB がある構成でだけ使える
             return { ...c, blueprint: { ...c.blueprint, slots, autoScaling: c.blueprint.autoScaling && slots.public !== null } };
@@ -200,4 +212,15 @@ export function pendingRequests(state: Pick<SaveState, 'customers' | 'accepted'>
     const other = customerSave(state, after.customerId);
     return state.accepted.includes(after.customerId) && Boolean(other && other.month > after.month);
   });
+}
+
+/** 部品の解禁の進み具合（最初のお客さん・柏木さんが何か月目まで進んだか） */
+export function unlockStage(state: Pick<SaveState, 'customers' | 'accepted'>): number {
+  const first = FIRST_CUSTOMER;
+  if (!state.accepted.includes(first)) return 1;
+  return customerSave(state, first)?.month ?? 1;
+}
+
+export function partUnlocked(state: Pick<SaveState, 'customers' | 'accepted'>, part: PartType): boolean {
+  return unlockStage(state) >= (UNLOCK_MONTH[part] ?? 1);
 }

@@ -39,3 +39,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .runner, .popup, .blink, .puff, .bob { animation: none; }
 }
+
+/* 下から出るシート */
+@keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.sheet-in { animation: sheet-in 0.18s ease-out; }
+@media (prefers-reduced-motion: reduce) { .sheet-in { animation: none; } }

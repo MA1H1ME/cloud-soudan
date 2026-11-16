@@ -2,6 +2,7 @@
 import { customerById, ruleById, simByCustomer } from '../content';
 import { GRADE_TEXT, PrimaryButton, Screen, Stamp, Voice, pct, yen } from '../components/ui';
 import { RuleSources } from '../components/RuleSources';
+import { Senpai } from '../components/Senpai';
 import { go } from '../router';
 import { radarScores } from '../sim/radar';
 import { Radar } from '../components/Radar';
@@ -37,6 +38,7 @@ export function Report({ customerId }: { customerId: string }) {
         <Stamp grade={result.grade} />
       </div>
       <p className="text-center text-sm font-bold text-slate-900">{GRADE_TEXT[result.grade]}</p>
+      <Senpai tip="report" />
 
       <section>
         <h2 className="mb-2 text-sm font-bold text-slate-700">今月の目標</h2>

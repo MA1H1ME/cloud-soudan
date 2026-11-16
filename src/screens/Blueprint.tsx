@@ -5,6 +5,9 @@ import { BlueprintView } from '../components/BlueprintView';
 import { PrimaryButton, Screen, pct, yen } from '../components/ui';
 import { StepBar } from '../components/StepBar';
 import { StaticView } from '../components/StaticView';
+import { Senpai } from '../components/Senpai';
+import { Term } from '../components/Term';
+import { UNLOCK_MONTH } from '../guide';
 
 const SITES = [
   { id: 'ec2', label: 'Amazon EC2 にWebサーバーを立てる', desc: 'サーバー1台。OSから自分で管理する' },
@@ -16,7 +19,9 @@ import { baseCapacity, fixedCost, scalingActive } from '../sim/engine';
 import { ASG_COST_PER_DAY, ASG_MAX_EXTRA, EC2_CAPACITY, LOCKED_SLOTS, PARTS, SLOT_LABELS, SLOT_OPTIONS } from '../sim/parts';
 import type { Slot } from '../sim/schema';
 import { ticketsFrom } from '../sim/tickets';
-import { customerSave, pastResults, planFor, useSave } from '../store';
+import { customerSave, partUnlocked, pastResults, planFor, unlockStage, useSave } from '../store';
+
+const PART_TERM: Record<string, string> = { alb: 'alb', ec2: 'ec2', rds: 'rds', 'rds-standby': 'multi-az', 'rds-replica': 'read-replica' };
 
 export function BlueprintScreen({ customerId }: { customerId: string }) {
   const state = useSave();
@@ -35,6 +40,7 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
   const asg = scalingActive(bp);
   const last = pastResults(sim, save).at(-1)?.result;
   const tickets = last ? ticketsFrom(last, ruleById) : [];
+  const stage = unlockStage(state);
 
   return (
     <Screen
@@ -56,6 +62,7 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
 
       {save.running && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-slate-800">月の途中は構成を変えられません。月末の報告のあとで直せます。</p>}
       {inCase && <StepBar customerId={customerId} current="design" />}
+      {inCase ? <Senpai tip="design" /> : <>{stage >= 2 && <Senpai tip="unlock-2" />}{stage >= 3 && <Senpai tip="unlock-3" />}</>}
       {isStatic ? (
         <>
           <StaticView blueprint={save.running ?? bp} />
@@ -86,16 +93,20 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
             <div className="space-y-2">
               {SLOT_OPTIONS[selected].map((p) => {
                 const on = bp.slots[selected] === p;
+                const open = partUnlocked(state, p);
                 return (
-                  <button
-                    key={p} type="button" aria-pressed={on}
-                    onClick={() => state.setSlot(customerId, selected, p)}
-                    className={`w-full rounded-lg px-3 py-2 text-left text-sm ${on ? 'border-2 border-blue-600 bg-blue-50' : 'border border-slate-300'}`}
-                  >
-                    <span className="font-bold text-slate-900">{PARTS[p].label}</span>
-                    <span className="ml-2 text-slate-500">{yen(PARTS[p].cost)}／月</span>
-                    <span className="block text-xs text-slate-600">{PARTS[p].desc}</span>
-                  </button>
+                  <div key={p} className={`rounded-lg text-sm ${on ? 'border-2 border-blue-600 bg-blue-50' : 'border border-slate-300'} ${open ? '' : 'bg-slate-50'}`}>
+                    <button
+                      type="button" aria-pressed={on} disabled={!open}
+                      onClick={() => state.setSlot(customerId, selected, p)}
+                      className="w-full px-3 pt-2 text-left disabled:text-slate-400"
+                    >
+                      <span className={`font-bold ${open ? 'text-slate-900' : 'text-slate-400'}`}>{open ? '' : '🔒 '}{PARTS[p].label}</span>
+                      <span className="ml-2 text-slate-500">{yen(PARTS[p].cost)}／月</span>
+                      <span className="block text-xs text-slate-600">{open ? PARTS[p].desc : `柏木さんの${UNLOCK_MONTH[p]}か月目から使えます`}</span>
+                    </button>
+                    <p className="px-3 pb-2 text-right text-xs"><Term id={PART_TERM[p]!}>くわしく</Term></p>
+                  </div>
                 );
               })}
               {bp.slots[selected] && (
@@ -111,7 +122,7 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
       <section className="space-y-2">
         <label className={`flex items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-sm ${bp.slots.public ? '' : 'opacity-50'}`}>
           <span>
-            <b>Auto Scaling</b>
+            <b><Term id="auto-scaling">Auto Scaling</Term></b>
             <span className="block text-xs text-slate-600">
               {bp.slots.public ? `混んだ日だけ最大${ASG_MAX_EXTRA}台を追加（1台1日 ${yen(ASG_COST_PER_DAY)}）` : 'ALB を置くと使えます'}
             </span>

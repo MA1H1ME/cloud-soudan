@@ -10,6 +10,8 @@ import { customerSave, dueSpots, pendingRequests, pastResults, planFor, runningR
 import { spotById } from '../content';
 import { Desk, MONO, Person, PX, Tiles } from '../components/pixel';
 import { yen } from '../components/ui';
+import { Senpai, SenpaiLine } from '../components/Senpai';
+import { unlockStage } from '../store';
 
 const PRIORITY_LABELS = { security: 'セキュリティ', reliability: '止まらないこと', performance: '速さ', cost: 'コスト' } as const;
 
@@ -52,6 +54,7 @@ export function Floor() {
   const sim = simByCustomer.get(MAIN);
   const save = customerSave(state, MAIN);
   const [speed, setSpeed] = useState(0);
+  const [menu, setMenu] = useState(false);
   const local = useRef(save?.day ?? 0);
 
   const result = sim && save ? runningResult(sim, save) : undefined;
@@ -83,6 +86,24 @@ export function Floor() {
     if (!company) go({ name: 'title' });
   }, [company]);
   if (!company) return null;
+  const menuSheet = menu && (
+    <div className="fixed inset-0 z-40 flex items-start justify-end bg-slate-900/50" onClick={() => setMenu(false)} role="presentation">
+      <nav aria-label="メニュー" onClick={(e) => e.stopPropagation()} className="mr-2 mt-12 w-56 space-y-1 border-2 border-white p-2 text-sm text-white" style={{ background: PX.box }}>
+        {[
+          { label: '学習記録', on: () => go({ name: 'record' }) },
+          { label: '用語図鑑', on: () => go({ name: 'glossary' }) },
+          { label: '先輩の案内をもう一度見る', on: () => { state.resetTips(); setMenu(false); } },
+          { label: 'タイトルへ戻る', on: () => go({ name: 'title' }) },
+        ].map((m) => (
+          <button key={m.label} type="button" onClick={() => { setSpeed(0); m.on(); }} className="block w-full px-2 py-2 text-left active:bg-white/10">{m.label}</button>
+        ))}
+        <p className="px-2 pt-1 text-[10px] text-slate-300">進み具合は自動で保存されます。</p>
+      </nav>
+    </div>
+  );
+  const menuButton = (
+    <button type="button" onClick={() => { setSpeed(0); setMenu(true); }} aria-label="メニュー" className="px-1 text-base text-white">☰</button>
+  );
   const requests = pendingRequests(state);
   const requestCards = requests.map((r) => {
     const c = customerById.get(r.customerId);
@@ -98,9 +119,14 @@ export function Floor() {
   if (!sim || !save) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-3 bg-slate-900 px-3 py-3">
-        <p className="text-sm text-white" style={{ fontFamily: MONO }}>{company.name}　<span className="text-yellow-300">{yen(company.cash)}</span></p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-white" style={{ fontFamily: MONO }}>{company.name}　<span className="text-yellow-300">{yen(company.cash)}</span></p>
+          {menuButton}
+        </div>
         <p className="text-sm text-slate-300">事務所を開いたばかりです。最初の依頼が届いています。</p>
+        <Senpai tip="first-request" />
         {requestCards}
+        {menuSheet}
         {content.sim.length === 0 && <p className="text-xs text-slate-400">公開できる内容がまだありません。</p>}
       </div>
     );
@@ -124,6 +150,20 @@ export function Floor() {
   const before = !save.running;
   const inCase = save.phase !== 'operate';
   const finished = !plan;
+  const stage = unlockStage(state);
+  const unfinished = state.accepted.filter((id) => {
+    const sm = simByCustomer.get(id), sv = customerSave(state, id);
+    return id !== MAIN && sm && sv && planFor(sm, sv.month);
+  });
+  const nextStep = finished
+    ? unfinished.length > 0
+      ? `${name}さんの案件は完了だ。下のラックをタップして、${customerById.get(unfinished[0]!)?.name ?? ''}さんの担当に切り替えよう。`
+      : requests.length > 0 ? '新しい依頼が届いている。受けてみよう。' : 'いまある案件はすべて終わった。記録で振り返ったり、スポット案件で復習したりしよう。'
+    : inCase
+      ? '案件の続きを進めよう。ヒアリング → 設計 → 構築 → 検証の順だ。'
+      : before
+        ? tickets.length > 0 ? '先月の課題を見て、設計図か構築で直してから月を始めよう。' : '構成がよければ、月を始めよう。'
+        : day >= DAYS ? '月末だ。報告を見よう。' : 'ラックの様子を見守ろう。▶▶で早送りできる。';
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-slate-900">
@@ -131,7 +171,9 @@ export function Floor() {
         <span>{finished ? '試作版はここまで' : `${save.month}か月目 ${Math.max(day, 1)}日`}</span>
         <span className="font-bold text-yellow-300">{yen(company.cash)}</span>
         <span className="text-yellow-300" aria-label={`評判 ${stars}`}>{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>
+        {menuButton}
       </header>
+      {menuSheet}
       <p className="truncate px-3 py-1 text-[11px] text-slate-300" style={{ background: '#1b2333' }}>{company.name}</p>
 
       <div className="relative">
@@ -236,9 +278,10 @@ export function Floor() {
           <span className="ml-2">月額 {yen(result.fixedCost)}</span>
         </p>
       )}
-      {finished && (
-        <p className="px-3 py-3 text-sm text-white" style={{ background: PX.box }}>4か月分を遊び終えました。タイトルの「はじめから」で、別の構成でもう一度試せます。</p>
-      )}
+      {before && !inCase && stage >= 2 && <div className="px-3 pt-2"><Senpai tip="unlock-2" /></div>}
+      {before && !inCase && stage >= 3 && <div className="px-3 pt-2"><Senpai tip="unlock-3" /></div>}
+      {before && !inCase && plan && <div className="px-3 pt-2"><Senpai tip="operate" /></div>}
+      <SenpaiLine dark>{nextStep}</SenpaiLine>
 
       <div className="mt-auto">
         {!finished && (
