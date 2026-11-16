@@ -19,9 +19,20 @@ import { TermSheet } from './components/Term';
 export function App() {
   return (
     <>
-      <Routes />
+      <Transition />
       <TermSheet />
     </>
+  );
+}
+
+/** 画面ごとに切り替えの演出をかける（月次報告は暗転、ほかは横から入る） */
+function Transition() {
+  const route = useRoute();
+  const key = 'customerId' in route ? `${route.name}/${route.customerId}` : route.name === 'spot' ? `spot/${route.spotId}` : route.name;
+  return (
+    <div key={key} className={route.name === 'report' || route.name === 'ending' ? 'screen-dark' : 'screen-in'}>
+      <Routes />
+    </div>
   );
 }
 

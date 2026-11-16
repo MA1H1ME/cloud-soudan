@@ -57,9 +57,11 @@ const out = process.env.E2E_OUT;
   });
   await runMonth('kashiwagi m1');
   await ok(); await shot('3-floor-m2');
-  // 時間を進めてメールを待つ
-  await page.getByRole('button', { name: /×4/ }).click();
-  await page.waitForTimeout(2500);
+  // 柏木さんの2か月目を始め、少し時間を進めてメールを待つ（障害対応が出たら答える）
+  await page.getByRole('button', { name: /▶ この構成で/ }).click();
+  await page.waitForTimeout(1500);
+  const d0 = page.getByRole('dialog', { name: '障害対応' });
+  if (await d0.count()) { await d0.getByRole('button').first().click(); await page.getByText('運用を続ける').click(); }
   await page.getByRole('button', { name: /停止/ }).click();
   await shot('4-floor-mail');
   await page.getByRole('button', { name: /^メール/ }).click(); await ok();

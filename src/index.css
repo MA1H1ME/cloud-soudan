@@ -44,3 +44,22 @@ body {
 @keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .sheet-in { animation: sheet-in 0.18s ease-out; }
 @media (prefers-reduced-motion: reduce) { .sheet-in { animation: none; } }
+
+/* 紙吹雪（ランクアップ） */
+.confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.confetti i { position: absolute; top: -10px; width: 6px; height: 10px; animation: confetti-fall 1.8s linear infinite; }
+@keyframes confetti-fall { to { transform: translateY(110vh) rotate(540deg); } }
+
+/* 画面の切り替え：少し横から入る */
+@keyframes screen-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+.screen-in { animation: screen-in 0.22s ease-out; }
+/* 月次報告へ：暗転してから明ける */
+@keyframes screen-dark { 0% { opacity: 0; filter: brightness(0); } 40% { opacity: 1; filter: brightness(0); } 100% { filter: none; } }
+.screen-dark { animation: screen-dark 0.6s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .confetti, .screen-in, .screen-dark { animation: none; }
+  .confetti { display: none; }
+}
+
+/* タップしたときの枠は出さず、キーボード操作のときだけ出す */
+svg [role='button']:focus:not(:focus-visible) { outline: none; }

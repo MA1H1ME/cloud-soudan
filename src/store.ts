@@ -90,6 +90,11 @@ interface SaveState {
   revenue: number;
   endingSeen: boolean;
   seeEnding: () => void;
+  /** お祝いを見せたランク（ランクアップの演出に使う） */
+  seenRank?: number;
+  setSeenRank: (rank: number) => void;
+  /** 直近の給料日（フロアで知らせる） */
+  lastPay: { day: number; amount: number } | null;
   /** 効果音 */
   sound: boolean;
   setSound: (on: boolean) => void;
@@ -179,7 +184,11 @@ export const useSave = create<SaveState>()(
           // 30日ごとに給料を払う
           const paydays = Math.floor((day - 1) / PAYDAY) - Math.floor((st.clock - 1) / PAYDAY);
           const salary = paydays * payroll(st.staff);
-          set({ clock: day, mailLog, company: st.company && salary ? { ...st.company, cash: st.company.cash - salary } : st.company });
+          set({
+            clock: day, mailLog,
+            company: st.company && salary ? { ...st.company, cash: st.company.cash - salary } : st.company,
+            lastPay: salary ? { day, amount: salary } : st.lastPay,
+          });
         },
         acceptMail: (id) => {
           const st = get();
@@ -213,6 +222,8 @@ export const useSave = create<SaveState>()(
         revenue: 0,
         endingSeen: false,
         seeEnding: () => set({ endingSeen: true }),
+        setSeenRank: (rank) => set({ seenRank: rank }),
+        lastPay: null,
         sound: true,
         setSound: (on) => { setSoundEnabled(on); set({ sound: on }); },
         hire: (kind) => {
@@ -223,7 +234,7 @@ export const useSave = create<SaveState>()(
           set({ staff: { ...st.staff, [kind]: true }, company: { ...st.company, cash: st.company.cash - s.hire } });
         },
         importSave: (data) => set({ ...data }),
-        newGame: (name) => set({ staff: { ops: false, sales: false }, learned: [], revenue: 0, endingSeen: false, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
+        newGame: (name) => set({ staff: { ops: false, sales: false }, learned: [], revenue: 0, endingSeen: false, seenRank: 0, lastPay: null, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
         answerSpot: (spotId, passed, firedRuleIds, practice) => {
           const spot = content.spots.find((x) => x.id === spotId);
           const st = get();
@@ -397,3 +408,12 @@ export function partUnlocked(state: Pick<SaveState, 'customers' | 'accepted'>, p
 // 保存してある設定を効果音に反映する
 useSave.persist.onFinishHydration((st) => setSoundEnabled(st.sound));
 setSoundEnabled(useSave.getState().sound);
+
+/** 会社の暦を「○月○日」で表す。1日目＝4月1日、30日でひと月（給料日の区切りと同じ） */
+export function calendar(clock: number): { year: number; month: number; date: number; label: string } {
+  const m = Math.floor((clock - 1) / 30);
+  const month = ((m + 3) % 12) + 1;
+  const year = Math.floor((m + 3) / 12) + 1;
+  const date = ((clock - 1) % 30) + 1;
+  return { year, month, date, label: `${year}年目 ${month}月${date}日` };
+}
