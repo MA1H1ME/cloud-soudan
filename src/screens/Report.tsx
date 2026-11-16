@@ -9,7 +9,7 @@ import { go } from '../router';
 import { radarScores } from '../sim/radar';
 import { Radar } from '../components/Radar';
 import { SLOW_DAYS_ALLOWED } from '../sim/parts';
-import { BEST_BONUS, customerSave, planFor, runningResult, useSave } from '../store';
+import { BEST_BONUS, MISSED_FACTOR, contractFeeFor, customerSave, missedRequirements, planFor, runningResult, useSave } from '../store';
 
 export function Report({ customerId }: { customerId: string }) {
   const state = useSave();
@@ -26,13 +26,15 @@ export function Report({ customerId }: { customerId: string }) {
     { ok: result.kpi.performance, label: '重くない', detail: `重かった日 ${result.slowDays}日／${SLOW_DAYS_ALLOWED}日まで` },
     { ok: result.kpi.security, label: 'セキュリティ', detail: result.kpi.security ? '事故・指摘なし' : '問題が起きた' },
   ];
+  const fee = contractFeeFor(state, customerId, result.grade);
+  const missed = missedRequirements(sim, save);
   const next = () => {
     state.next(customerId, result.grade);
     go({ name: 'floor' });
   };
 
   return (
-    <Screen title={`月次レポート：${save.month}か月目`} footer={<PrimaryButton onClick={next}>{planFor(sim, save.month + 1) ? '翌月へ進む' : '契約を完了する'}{result.grade !== 'fail' ? `（契約料 +${yen(sim.contractFee)}${result.grade === 'best' ? `、ボーナス +${yen(BEST_BONUS)}` : ''}）` : '（契約料なし）'}</PrimaryButton>}>
+    <Screen title={`月次レポート：${save.month}か月目`} footer={<PrimaryButton onClick={next}>{planFor(sim, save.month + 1) ? '翌月へ進む' : '契約を完了する'}{result.grade !== 'fail' ? `（契約料 +${yen(fee)}${result.grade === 'best' ? `、ボーナス +${yen(BEST_BONUS)}` : ''}）` : '（契約料なし）'}</PrimaryButton>}>
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <Voice name={name} mood={result.grade === 'best' ? 'happy' : result.grade === 'good' ? 'normal' : 'troubled'}>{sim.comments[result.grade]}</Voice>
@@ -41,6 +43,14 @@ export function Report({ customerId }: { customerId: string }) {
       </div>
       <p className="text-center text-sm font-bold text-slate-900">{GRADE_TEXT[result.grade]}</p>
       <Senpai tip="report" />
+
+      {missed.length > 0 && (
+        <section className="border-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-slate-900">
+          <p className="font-bold">ヒアリングの聞き漏らし</p>
+          <p className="mt-1">「最初に聞いてくれれば、伝えたのに…」 聞かなかった要件を満たせていませんでした。信頼が下がり、今月の契約料は{Math.round(MISSED_FACTOR * 100)}%になります。</p>
+          <ul className="mt-1 text-xs text-amber-900">{missed.map((m) => <li key={m.id}>・{m.label}</li>)}</ul>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-2 text-sm font-bold text-slate-700">今月の目標</h2>

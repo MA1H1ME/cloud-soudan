@@ -26,6 +26,8 @@ export interface IncidentOption {
 
 export interface Incident {
   key: string;
+  /** 対応の種類。一度正しく答えた種類は、運用担当が代わりに対応できる */
+  type: string;
   day: number;
   /** 何が起きたか（お客さん・監視からの知らせ） */
   alert: string;
@@ -52,7 +54,7 @@ export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprin
   if (bp.site !== 'none') return null;
   if ((ev.type === 'db-failure' || ev.type === 'az-outage') && bp.slots['data-c'] === 'rds-replica') {
     return {
-      key, day, termId: 'read-replica', defaultId: 'wait',
+      key, day, type: 'replica-promote', termId: 'read-replica', defaultId: 'wait',
       alert: `${ev.label}：データベースの本体が応答しません。リードレプリカは動いています。`,
       question: 'どう対応する？',
       options: [
@@ -65,7 +67,7 @@ export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprin
   }
   if ((ev.type === 'db-failure' || ev.type === 'az-outage') && !bp.slots['data-c'] && bp.backup) {
     return {
-      key, day, termId: 'rds-backup', defaultId: 'overwrite',
+      key, day, type: 'backup-restore', termId: 'rds-backup', defaultId: 'overwrite',
       alert: `${ev.label}：データベースが壊れました。自動バックアップはあります。`,
       question: 'どう対応する？',
       options: [
@@ -80,7 +82,7 @@ export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprin
     const days = ev.days ?? 2;
     if (bp.slots.public) {
       return {
-        key, day, termId: 'alb', defaultId: 'wait',
+        key, day, type: 'spike-alb', termId: 'alb', defaultId: 'wait',
         alert: `${ev.label}：アクセスが急に増えて、ページが重くなり始めました。`,
         question: 'どう対応する？',
         options: [
@@ -92,7 +94,7 @@ export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprin
       };
     }
     return {
-      key, day, termId: 'alb', defaultId: 'wait',
+      key, day, type: 'spike-noalb', termId: 'alb', defaultId: 'wait',
       alert: `${ev.label}：アクセスが急に増えて、ページが重くなり始めました。`,
       question: 'どう対応する？',
       options: [
@@ -105,7 +107,7 @@ export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprin
   }
   if (ev.type === 'probe' && bp.dbPublic && bp.dbSgOpen) {
     return {
-      key, day, termId: 'security-group', defaultId: 'password',
+      key, day, type: 'db-sg', termId: 'security-group', defaultId: 'password',
       alert: `${ev.label}：インターネットから、データベースへの接続の試みが続いています。`,
       question: 'まず何をする？',
       options: [
@@ -118,7 +120,7 @@ export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprin
   }
   if (ev.type === 'bucket-probe' && bp.s3Public) {
     return {
-      key, day, termId: 's3', defaultId: 'rename',
+      key, day, type: 'bucket-bpa', termId: 's3', defaultId: 'rename',
       alert: `${ev.label}：本人にだけ渡すはずのファイルのURLが、知らない人に共有されています。`,
       question: 'まず何をする？',
       options: [
@@ -131,7 +133,7 @@ export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprin
   }
   if (ev.type === 'audit' && bp.credential === 'access-key') {
     return {
-      key, day, termId: 'iam-role', defaultId: 'hide',
+      key, day, type: 'audit-role', termId: 'iam-role', defaultId: 'hide',
       alert: `${ev.label}：サーバーにアクセスキーが保存されていると指摘されました。`,
       question: 'どう答える？',
       options: [

@@ -48,7 +48,8 @@ export function Title() {
         >
           つづきから{company && <span className="ml-2 text-xs text-yellow-300">（{company.name}）</span>}
         </button>
-        <p className="pt-2 text-center text-[11px] text-yellow-100/80">AWS SAA-C03 学習用・非公式</p>
+        <button type="button" onClick={() => go({ name: 'transfer' })} className="w-full py-1 text-xs text-yellow-100 underline">セーブの引き継ぎ</button>
+        <p className="pt-1 text-center text-[11px] text-yellow-100/80">AWS SAA-C03 学習用・非公式</p>
       </div>
     </div>
   );
