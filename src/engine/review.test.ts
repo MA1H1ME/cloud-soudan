@@ -1,17 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, enqueue, gameDate, initialStage, onReviewAnswered, pickDueReviews, pickReviewScenario } from './review';
+import { addDays, enqueue, gameDate, onReviewAnswered, pickDueReviews } from './review';
 import type { Concept } from '../content/schema';
-
-describe('initialStage', () => {
-  it('仕様書の表どおりに最初の段階を決める', () => {
-    expect(initialStage('fail', false, false)).toBe(1);
-    expect(initialStage('fair', false, false)).toBe(1);
-    expect(initialStage('best', false, true)).toBe(1); // よくある勘違いを選んだ
-    expect(initialStage('good', false, false)).toBe(2);
-    expect(initialStage('best', true, false)).toBe(2); // ヒントを使って◎
-    expect(initialStage('best', false, false)).toBe(3);
-  });
-});
 
 describe('onReviewAnswered', () => {
   const base = enqueue('rds', 'kashiwagi-01', 1, '2026-12-01');
@@ -53,16 +42,6 @@ describe('pickDueReviews', () => {
       '2026-12-10',
     );
     expect(picked.map((p) => `${p.conceptId}@${p.dueOn}`)).toEqual(['a@2026-12-01', 'b@2026-12-02', 'd@2026-12-04']);
-  });
-});
-
-describe('pickReviewScenario', () => {
-  const concept: Concept = { id: 'rds', title: 't', domain: 'resilient', requires: [], reviewScenarioIds: ['g1', 'g2'] };
-  it('未見の相談を優先し、全部見ていれば最後に見た日が最も古いもの', () => {
-    const item = enqueue('rds', 'story', 1, '2026-12-01');
-    expect(pickReviewScenario(item, concept)).toBe('g1');
-    const seenBoth = { ...item, seen: [{ scenarioId: 'g1', seenOn: '2026-12-05' }, { scenarioId: 'g2', seenOn: '2026-12-03' }] };
-    expect(pickReviewScenario(seenBoth, concept)).toBe('g2');
   });
 });
 

@@ -1,5 +1,5 @@
 // 復習キュー。仕様書「6. デイリータスクと復習」に対応する。
-import type { Grade } from './scoring';
+import type { Grade } from '../sim/engine';
 import type { Concept, ExamDomain } from '../content/schema';
 
 export type Stage = 1 | 2 | 3 | 4 | 5;
@@ -21,13 +21,6 @@ export function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
-}
-
-/** ストーリーでの結果から、復習キューに入れる最初の段階を決める。 */
-export function initialStage(grade: Grade, usedHint: boolean, hitMisconception: boolean): Stage {
-  if (grade === 'fair' || grade === 'fail' || hitMisconception) return 1;
-  if (grade === 'good' || usedHint) return 2;
-  return 3;
 }
 
 export function enqueue(
@@ -84,17 +77,6 @@ export function pickDueReviews(
     picked.push(item);
   }
   return picked;
-}
-
-/** 学習項目の復習用の相談から1件選ぶ：未見を優先、なければ最後に見た日が最も古いもの。 */
-export function pickReviewScenario(item: ReviewItem, concept: Concept): string | undefined {
-  const lastSeen = new Map<string, string>();
-  for (const s of item.seen) lastSeen.set(s.scenarioId, s.seenOn);
-  const unseen = concept.reviewScenarioIds.find((id) => !lastSeen.has(id));
-  if (unseen) return unseen;
-  return [...concept.reviewScenarioIds].sort((a, b) =>
-    (lastSeen.get(a) ?? '').localeCompare(lastSeen.get(b) ?? ''),
-  )[0];
 }
 
 /** ゲーム内の日付。端末のローカル時刻で午前4時に切り替える。 */
