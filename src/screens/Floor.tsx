@@ -32,6 +32,11 @@ function rackItems(bp: Blueprint, result: MonthResult | undefined, day: number):
   const dbDown = started && result.up[i]! < 1;
   const s = bp.slots;
   const items: { label: string; led: Led }[] = [];
+  if (bp.site !== 'none') {
+    if (bp.site === 's3-cloudfront') items.push({ label: 'CF', led: 'g' });
+    items.push({ label: bp.site === 'ec2' ? 'EC2' : 'S3', led: bp.site === 'ec2' ? web : 'g' });
+    return items;
+  }
   if (s.public) items.push({ label: SHORT[s.public], led: web === 'r' ? 'y' : 'g' });
   if (s['app-a']) items.push({ label: SHORT[s['app-a']], led: dbDown ? 'r' : web });
   if (s['app-c']) items.push({ label: SHORT[s['app-c']], led: web });

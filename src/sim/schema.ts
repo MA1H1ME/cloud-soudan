@@ -17,11 +17,14 @@ export const blueprintSchema = z.object({
   dbPublic: z.boolean().default(false), // データベースのパブリックアクセス
   dbSgOpen: z.boolean().default(false), // セキュリティグループがどこからでも接続を許可している
   s3Public: z.boolean().default(false), // ファイル用バケットを公開している
+  // 静的サイトの置き場所。'none' 以外なら、サーバーとDBの構成ではなく静的サイトとして計算する
+  site: z.enum(['none', 'ec2', 's3-website', 's3-cloudfront']).default('none'),
+  lifecycle: z.boolean().default(false), // 古い写真を低頻度アクセス向けのストレージクラスへ移すルール
   credential: z.enum(['access-key', 'role-full', 'role-scoped']).default('role-scoped'), // アプリ（EC2）がS3を使うための権限の渡し方
 });
 export type Blueprint = z.infer<typeof blueprintSchema>;
 
-export const eventTypeSchema = z.enum(['spike', 'db-failure', 'az-outage', 'probe', 'bucket-probe', 'audit']);
+export const eventTypeSchema = z.enum(['spike', 'db-failure', 'az-outage', 'probe', 'bucket-probe', 'audit', 'https-check', 'storage-review', 'invoice']);
 export type EventType = z.infer<typeof eventTypeSchema>;
 
 export const monthPlanSchema = z.object({
@@ -42,7 +45,7 @@ export const monthPlanSchema = z.object({
 });
 export type MonthPlan = z.infer<typeof monthPlanSchema>;
 
-export const checkTypeSchema = z.enum(['budget', 'data', 'downtime', 'peak', 'secure-db', 's3-private', 'no-keys', 'least-privilege']);
+export const checkTypeSchema = z.enum(['budget', 'data', 'downtime', 'peak', 'secure-db', 's3-private', 'no-keys', 'least-privilege', 'https', 'storage']);
 export type CheckType = z.infer<typeof checkTypeSchema>;
 
 // ヒアリング：用意した質問から選んで聞き、要件メモを埋める。会話は事前に作成したものだけ。

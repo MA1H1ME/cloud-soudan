@@ -42,6 +42,7 @@ interface SaveState {
   accept: (customerId: string) => void;
   setActive: (customerId: string) => void;
   setCredential: (customerId: string, value: Blueprint['credential']) => void;
+  setSite: (customerId: string, value: Blueprint['site']) => void;
   /** conceptId → 復習の状態（忘却曲線に沿って間隔を広げる） */
   review: Record<string, ReviewItem>;
   /** これまでに出会ったルール */
@@ -49,7 +50,7 @@ interface SaveState {
   answerSpot: (spotId: string, passed: boolean, firedRuleIds: string[], practice: boolean) => void;
   newGame: (name: string) => void;
   setSlot: (customerId: string, slot: Slot, part: PartType | null) => void;
-  setSetting: (customerId: string, key: 'backup' | 'autoScaling' | 'dbPublic' | 'dbSgOpen' | 's3Public', value: boolean) => void;
+  setSetting: (customerId: string, key: 'backup' | 'autoScaling' | 'dbPublic' | 'dbSgOpen' | 's3Public' | 'lifecycle', value: boolean) => void;
   ask: (customerId: string, questionId: string) => void;
   setPhase: (customerId: string, phase: Phase) => void;
   startMonth: (customerId: string) => void;
@@ -84,6 +85,7 @@ export const useSave = create<SaveState>()(
         active: null,
         accept: (customerId) => set({ accepted: [...new Set([...get().accepted, customerId])], active: customerId }),
         setActive: (customerId) => get().accepted.includes(customerId) && set({ active: customerId }),
+        setSite: (customerId, value) => update(customerId, (c) => (c.running ? c : { ...c, blueprint: { ...c.blueprint, site: value } })),
         setCredential: (customerId, value) => update(customerId, (c) => (c.running ? c : { ...c, blueprint: { ...c.blueprint, credential: value } })),
         review: {},
         seenRules: [],

@@ -14,7 +14,7 @@ const yen = (n: number) => `¥${Math.round(n).toLocaleString('ja-JP')}`;
 function judge(check: CheckType, bp: Blueprint, plan: MonthPlan, profitPerVisit: number): { ok: boolean; detail: string } {
   switch (check) {
     case 'budget': {
-      const cost = fixedCost(bp);
+      const cost = fixedCost(bp, plan.month);
       return { ok: cost <= plan.budget, detail: `月額の見積もり ${yen(cost)}／予算 ${yen(plan.budget)}` };
     }
     case 'data':
@@ -33,6 +33,14 @@ function judge(check: CheckType, bp: Blueprint, plan: MonthPlan, profitPerVisit:
         ? { ok: true, detail: `ピークの日も含め、重くなる日は${r.slowDays}日の見込みです` }
         : { ok: false, detail: `処理能力が足りず、重くなる日が${r.slowDays}日ある見込みです` };
     }
+    case 'https':
+      return bp.site === 's3-website'
+        ? { ok: false, detail: 'S3 のウェブサイトエンドポイントは HTTPS に対応していません' }
+        : { ok: true, detail: bp.site === 's3-cloudfront' ? 'CloudFront 経由で HTTPS 配信できます' : 'サーバーに証明書を入れれば HTTPS 配信できます（管理は自分で行います）' };
+    case 'storage':
+      return bp.lifecycle
+        ? { ok: true, detail: '古い写真を、低頻度アクセス向けのストレージクラスへ移すルールがあります' }
+        : { ok: false, detail: '写真がたまり続けると、保存料が増えていきます。ライフサイクルルールがありません' };
     case 's3-private':
       return bp.s3Public
         ? { ok: false, detail: 'バケットが公開されていて、URLを知っていれば誰でもファイルを開けます' }

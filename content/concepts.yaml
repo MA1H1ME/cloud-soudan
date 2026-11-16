@@ -40,3 +40,8 @@
   domain: secure
   requires: [rds, ec2]
   reviewScenarioIds: []
+- id: s3-storage-classes
+  title: S3 のストレージクラスとライフサイクル
+  domain: cost
+  requires: [s3]
+  reviewScenarioIds: []

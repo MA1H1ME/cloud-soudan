@@ -139,3 +139,27 @@ describe('氷室さん：セキュリティ最優先', () => {
     expect(runH(3, full).grade).toBe('best');
   });
 });
+
+describe('灯さん：コスト最優先の静的サイト', () => {
+  const a = simCustomerSchema.parse(parse(readFileSync(join(dir, 'sim/akari.yaml'), 'utf8')));
+  const runA = (n: number, b: Blueprint) => runMonth(a.profitPerVisit, a.months.find((m) => m.month === n)!, b);
+  it('借り物のサーバーのままだと、拡散で落ち、予算も超える', () => {
+    const r = runA(1, a.start);
+    expect(ids(r)).toEqual(expect.arrayContaining(['static-ec2-overload', 'static-on-ec2']));
+    expect(r.kpi.budget).toBe(false);
+  });
+  it('S3 のウェブサイト機能だけだと安いが、HTTPS にできない', () => {
+    const r = runA(1, { ...a.start, site: 's3-website' });
+    expect(r.kpi.budget).toBe(true);
+    expect(ids(r)).toContain('s3-website-no-https');
+    expect(r.kpi.security).toBe(false);
+  });
+  it('S3＋CloudFront で◎。3か月目はライフサイクルルールがないと予算を超える', () => {
+    const cf = { ...a.start, site: 's3-cloudfront' as const };
+    expect(runA(1, cf).grade).toBe('best');
+    expect(runA(2, cf).grade).toBe('best');
+    expect(runA(3, cf).kpi.budget).toBe(false);
+    expect(ids(runA(3, cf))).toContain('s3-no-lifecycle');
+    expect(runA(3, { ...cf, lifecycle: true }).grade).toBe('best');
+  });
+});

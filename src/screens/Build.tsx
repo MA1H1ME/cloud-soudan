@@ -10,6 +10,7 @@ import { customerSave, planFor, useSave } from '../store';
 
 // 「情報」の説明文。content/rules.yaml と同じ公式ドキュメントと照合済み（2026-11-16）。
 const HELP_S3 = 'Amazon S3 のバケットとオブジェクトは、デフォルトでは公開されません。ブロックパブリックアクセスは、ポリシーやアクセス許可より優先して公開を制限します。特定の人に渡すときは、署名付きURLで期限つきのアクセスを許可できます。';
+const HELP_LIFECYCLE = 'S3 ライフサイクルは、オブジェクトをより低コストのストレージクラスへ移行したり、期限切れのオブジェクトを削除したりして、費用を抑えて保存するのに役立ちます。S3 標準 – IA は、長く保存し、アクセス頻度の低いデータ向けのストレージクラスです。';
 const HELP_IAM = 'EC2 に IAM ロールを割り当てると、アプリケーションは一時的な認証情報を受け取って使えます。IAMユーザーの長期の認証情報（アクセスキー）を配る必要がありません。権限は、作業に必要な分だけを与えます（最小権限）。';
 const HELP = {
   az: 'マルチ AZ DB インスタンスでは、別のアベイラビリティーゾーンに待機系（スタンバイ）が置かれ、本体から同期的に複製されます。本体に障害が起きると、自動で待機系に切り替わります。待機系を読み取りに使うことはできません。',
@@ -58,7 +59,8 @@ export function Build({ customerId }: { customerId: string }) {
   const standby = bp.slots['data-c'] === 'rds-standby';
   const replica = bp.slots['data-c'] === 'rds-replica';
   const files = sim.features.includes('files');
-  const [service, setService] = useState<'rds' | 's3' | 'iam'>('rds');
+  const isStatic = bp.site !== 'none';
+  const [service, setService] = useState<'rds' | 's3' | 'iam' | 'site'>(isStatic ? 'site' : 'rds');
   const done = () => {
     if (inCase) {
       state.setPhase(customerId, 'verify');
@@ -139,6 +141,20 @@ export function Build({ customerId }: { customerId: string }) {
             <p className="text-xs text-slate-500">{bp.s3Public ? '現在：URLを知っていれば誰でもファイルを開けます' : '現在：非公開。本人には、アプリが期限つきの署名付きURLを発行します'}</p>
           </Section>
         </>)}
+        {service === 'site' && (<>
+          <p className="text-xs text-cyan-700">Amazon S3 ＞ バケット ＞ ブログの写真 ＞ 管理</p>
+          <h1 className="text-lg font-bold text-slate-900">ライフサイクルルール</h1>
+          {bp.site === 'ec2' ? (
+            <p className="bg-white px-3 py-3 text-sm text-slate-700">今はサイトを Amazon EC2 に置いています。Amazon S3 の設定は、② 設計で置き場所を S3 にすると使えます。</p>
+          ) : (
+            <Section title="ライフサイクルルール" summary={bp.lifecycle ? 'あり' : 'なし'} help={HELP_LIFECYCLE}>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" checked={bp.lifecycle} disabled={locked} onChange={(e) => state.setSetting(customerId, 'lifecycle', e.target.checked)} className="mt-1 h-4 w-4 accent-teal-600" />
+                <span className="text-slate-900">作成から30日たった写真を、S3 標準 – IA へ移行する</span>
+              </label>
+            </Section>
+          )}
+        </>)}
         {service === 'iam' && (<>
           <p className="text-xs text-cyan-700">IAM ＞ アプリ（EC2）から Amazon S3 へのアクセス</p>
           <h1 className="text-lg font-bold text-slate-900">アプリに権限を渡す方法</h1>
@@ -151,7 +167,7 @@ export function Build({ customerId }: { customerId: string }) {
 
         <div className="flex items-center justify-between bg-white px-3 py-2 text-sm">
           <span className="text-slate-500">推定月額（構成全体・ゲーム内の値）</span>
-          <span className={`font-bold ${fixedCost(bp) > plan.budget ? 'text-red-700' : 'text-slate-900'}`}>{yen(fixedCost(bp))}<span className="font-normal text-slate-500">／{yen(plan.budget)}</span></span>
+          <span className={`font-bold ${fixedCost(bp, plan.month) > plan.budget ? 'text-red-700' : 'text-slate-900'}`}>{yen(fixedCost(bp, plan.month))}<span className="font-normal text-slate-500">／{yen(plan.budget)}</span></span>
         </div>
       </main>
 

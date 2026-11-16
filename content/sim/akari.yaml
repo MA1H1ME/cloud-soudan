@@ -1,0 +1,76 @@
+# 灯さん（個人の旅行ブログ）の運用シム。コスト最優先。文章と写真だけの静的サイト。
+customerId: akari
+profitPerVisit: 0.4
+contractFee: 8000
+priority: cost
+request:
+  pitch: 旅のブログを自分のドメインで公開しています。副業なので、毎月の費用はランチ1回分に収めたいんです。今は知人に借りたサーバーに置いています。
+  after: { customerId: himuro, month: 1 }
+start:
+  slots: { public: null, app-a: null, app-c: null, data-a: null, data-c: null }
+  backup: false
+  autoScaling: false
+  site: ec2
+  lifecycle: false
+comments:
+  best: ランチ1回分で、鍵マークも出て、落ちない。言うことなしです！
+  good: ほぼ理想です。1つだけ気になるところがありました
+  fair: うーん、これだと副業としては続けにくいです
+  fail: 趣味のブログに、これは払えません…
+hearing:
+  opening: 記事は文章と写真だけです。難しいことは分からないのですが、とにかく安く。予算は月2,000円までです。
+  maxQuestions: 4
+  requirements:
+    - { id: budget, check: budget, given: true, label: '予算：月 ¥2,000 まで', unknown: '予算' }
+    - { id: https, check: https, label: 'アドレスバーに鍵マークを出す（HTTPS）', unknown: '通信の安全性：未確認' }
+    - { id: peak, check: peak, label: '記事が拡散すると、アクセスが約8倍になる', unknown: 'アクセスのピーク：未確認' }
+    - { id: storage, check: storage, label: '写真は毎月増える。古い写真はほとんど見られない', unknown: 'データの増え方：未確認' }
+  questions:
+    - id: q-https
+      text: 読者さんから、サイトについて何か言われたことはありますか？
+      answer: 「鍵マークが出ていないと不安」と言われたことがあります。鍵マークは出したいです。
+      reveals: https
+    - id: q-peak
+      text: アクセスが急に増えることはありますか？
+      answer: SNSで記事が拡散すると、いつもの8倍くらい来ます。前はそのときにサイトが開かなくなりました。
+      reveals: peak
+    - id: q-storage
+      text: 写真はどれくらい増えますか？ 昔の写真は見られていますか？
+      answer: 毎月たくさん増えます。でも、読まれるのは最近の記事ばかりで、昔の写真はほとんど見られません。
+      reveals: storage
+    - id: q-server
+      text: サーバー側で動かす機能（会員登録や検索など）はありますか？
+      answer: ありません。文章と写真を載せているだけです。
+    - id: q-trip
+      text: 次の旅行先はどちらですか？
+      answer: 台湾です！ …あ、サイトの話でしたね。
+    - id: q-camera
+      text: カメラは何を使っていますか？
+      answer: スマホです。それ、費用に関係あります？
+months:
+  - month: 1
+    visitsPerDay: 300
+    budget: 2000
+    uptimeTarget: 0.98
+    brief: とにかく安く、でも鍵マークは出したい。記事が拡散したときに落ちないでくれたら最高です
+    events:
+      - { day: 12, type: spike, label: 記事がSNSで拡散, factor: 8, days: 2 }
+      - { day: 20, type: https-check, label: 読者からの指摘 }
+      - { day: 30, type: invoice, label: 今月の請求書 }
+  - month: 2
+    visitsPerDay: 600
+    budget: 2500
+    uptimeTarget: 0.98
+    brief: 読者が倍になりました。来月はテレビの旅番組で紹介されるかもしれません
+    events:
+      - { day: 15, type: spike, label: テレビの旅番組で紹介, factor: 10, days: 2 }
+      - { day: 30, type: invoice, label: 今月の請求書 }
+  - month: 3
+    visitsPerDay: 1000
+    budget: 2500
+    uptimeTarget: 0.98
+    brief: 写真がだいぶたまってきました。請求が少しずつ上がっているのが気になります
+    events:
+      - { day: 10, type: storage-review, label: たまった写真の保存料 }
+      - { day: 22, type: https-check, label: 読者からの指摘 }
+      - { day: 30, type: invoice, label: 今月の請求書 }
