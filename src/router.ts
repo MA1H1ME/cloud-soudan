@@ -3,11 +3,11 @@ import { useEffect, useState } from 'react';
 
 export type Route =
   | { name: 'title' | 'opening' | 'floor' }
-  | { name: 'blueprint' | 'report'; customerId: string };
+  | { name: 'hearing' | 'blueprint' | 'build' | 'verify' | 'report'; customerId: string };
 
 export function parse(hash: string): Route {
   const [name, id] = hash.replace(/^#\/?/, '').split('/');
-  if ((name === 'blueprint' || name === 'report') && id) return { name, customerId: id };
+  if ((name === 'hearing' || name === 'blueprint' || name === 'build' || name === 'verify' || name === 'report') && id) return { name, customerId: id };
   if (name === 'opening' || name === 'floor') return { name };
   return { name: 'title' };
 }

@@ -3,9 +3,10 @@ import { useState } from 'react';
 import { customerById, ruleById, simByCustomer } from '../content';
 import { BlueprintView } from '../components/BlueprintView';
 import { PrimaryButton, Screen, pct, yen } from '../components/ui';
+import { StepBar } from '../components/StepBar';
 import { go } from '../router';
 import { baseCapacity, fixedCost, scalingActive } from '../sim/engine';
-import { ASG_COST_PER_DAY, ASG_MAX_EXTRA, BACKUP_COST, EC2_CAPACITY, LOCKED_SLOTS, PARTS, SLOT_LABELS, SLOT_OPTIONS } from '../sim/parts';
+import { ASG_COST_PER_DAY, ASG_MAX_EXTRA, EC2_CAPACITY, LOCKED_SLOTS, PARTS, SLOT_LABELS, SLOT_OPTIONS } from '../sim/parts';
 import type { Slot } from '../sim/schema';
 import { ticketsFrom } from '../sim/tickets';
 import { customerSave, pastResults, planFor, useSave } from '../store';
@@ -19,6 +20,7 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
   if (!sim || !save || !plan) return <Screen title="設計図が見つかりません"><PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton></Screen>;
 
   const bp = save.blueprint;
+  const inCase = save.phase !== 'operate';
   const name = customerById.get(customerId)?.name ?? customerId;
   const cost = fixedCost(bp);
   const cap = baseCapacity(bp);
@@ -30,7 +32,13 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
     <Screen
       title={`${name}さんの設計図`}
       right={<button type="button" onClick={() => go({ name: 'floor' })} className="text-sm text-slate-500 underline">フロア</button>}
-      footer={<PrimaryButton onClick={() => go({ name: 'floor' })}>{save.running ? 'フロアに戻る' : 'この構成でフロアに戻る'}</PrimaryButton>}
+      footer={
+        inCase ? (
+          <PrimaryButton onClick={() => { state.setPhase(customerId, 'build'); go({ name: 'build', customerId }); }}>③ 構築へ進む</PrimaryButton>
+        ) : (
+          <PrimaryButton onClick={() => go({ name: 'floor' })}>{save.running ? 'フロアに戻る' : 'この構成でフロアに戻る'}</PrimaryButton>
+        )
+      }
     >
       {tickets.length > 0 && (
         <ul className="space-y-1 text-sm">
@@ -39,6 +47,7 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
       )}
 
       {save.running && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-slate-800">月の途中は構成を変えられません。月末の報告のあとで直せます。</p>}
+      {inCase && <StepBar customerId={customerId} current="design" />}
       <BlueprintView blueprint={save.running ?? bp} selected={save.running ? null : selected} onSelect={save.running ? undefined : setSelected} />
 
       {save.running ? null : selected ? (
@@ -73,10 +82,6 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
       )}
 
       <section className="space-y-2">
-        <label className="flex items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-sm">
-          <span><b>自動バックアップ</b><span className="ml-2 text-slate-500">{yen(BACKUP_COST)}／月</span></span>
-          <input type="checkbox" className="h-5 w-5" checked={bp.backup} onChange={(e) => state.setSetting(customerId, 'backup', e.target.checked)} />
-        </label>
         <label className={`flex items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-sm ${bp.slots.public ? '' : 'opacity-50'}`}>
           <span>
             <b>Auto Scaling</b>

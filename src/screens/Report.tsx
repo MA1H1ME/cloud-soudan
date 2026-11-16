@@ -18,6 +18,7 @@ export function Report({ customerId }: { customerId: string }) {
     { ok: result.kpi.budget, label: '予算内', detail: `${yen(result.cost)}／${yen(plan.budget)}` },
     { ok: result.kpi.uptime, label: '稼働率', detail: `${pct(result.uptime, 2)}／目標 ${pct(plan.uptimeTarget)}` },
     { ok: result.kpi.performance, label: '重くない', detail: `重かった日 ${result.slowDays}日／${SLOW_DAYS_ALLOWED}日まで` },
+    { ok: result.kpi.security, label: '情報を漏らさない', detail: result.kpi.security ? '事故なし' : '情報が漏れた' },
   ];
   const next = () => {
     state.next(customerId, result.grade);

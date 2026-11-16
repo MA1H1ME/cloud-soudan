@@ -155,6 +155,13 @@ export function validate(dir: string, allowDraft: boolean): Report {
     c.months.forEach((m, i) => {
       if (m.month !== i + 1) errors.push(`sim/${f}: months は1から順に並べてください（${i + 1}番目が month ${m.month}）`);
     });
+    if (c.hearing) {
+      const reqIds = new Set(c.hearing.requirements.map((r) => r.id));
+      for (const q of c.hearing.questions) if (q.reveals && !reqIds.has(q.reveals)) errors.push(`sim/${f}: 質問 ${q.id} の reveals が存在しない要件 ${q.reveals} を指しています`);
+      for (const r of c.hearing.requirements) {
+        if (!r.given && !c.hearing.questions.some((q) => q.reveals === r.id)) errors.push(`sim/${f}: 要件 ${r.id} を聞き出せる質問がありません`);
+      }
+    }
     sim.push(c);
   }
   const draftRules = rules.filter((r) => r.review.status !== 'verified').length;

@@ -1,0 +1,131 @@
+// ③ 構築：練習用コンソールで、部品ごとの設定を選ぶ。
+// 画面の構造と設定項目の名前は実際のコンソールに合わせるが、配色・アイコン・ロゴは自作。
+import { useState, type ReactNode } from 'react';
+import { customerById, simByCustomer } from '../content';
+import { StepBar } from '../components/StepBar';
+import { yen } from '../components/ui';
+import { go } from '../router';
+import { fixedCost } from '../sim/engine';
+import { customerSave, planFor, useSave } from '../store';
+
+const HELP = {
+  az: 'マルチ AZ DB インスタンスは、別のアベイラビリティーゾーンに待機系（スタンバイ）を持ちます。本体に障害が起きると、自動で待機系に切り替わります。待機系の分だけ料金が増えます。',
+  conn: 'パブリックアクセスを「なし」にすると、データベースはVPCの外から接続できません。セキュリティグループでは、接続を許可する相手を指定します。IPアドレスの範囲のほかに、別のセキュリティグループも指定できます。',
+  backup: '自動バックアップを有効にすると、保持期間内の時点にデータベースを復元できます。復元は新しいデータベースを作る作業で、その間は止まります。',
+};
+
+function Section({ title, summary, help, children }: { title: string; summary: string; help: string; children: ReactNode }) {
+  const [open, setOpen] = useState(true);
+  const [info, setInfo] = useState(false);
+  return (
+    <section className="border border-slate-300 bg-white">
+      <div className="flex items-center justify-between bg-slate-50 px-3 py-2">
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex-1 text-left text-sm font-bold text-slate-900">
+          {open ? '▾' : '▸'} {title}
+          {!open && <span className="ml-2 font-normal text-slate-500">{summary}</span>}
+        </button>
+        <button type="button" onClick={() => setInfo(!info)} aria-expanded={info} className="text-xs text-cyan-700 underline">情報</button>
+      </div>
+      {info && <p className="border-t border-slate-200 bg-cyan-50 px-3 py-2 text-xs leading-relaxed text-slate-800">{help}<span className="mt-1 block text-[10px] text-slate-500">下書き（公式ドキュメントとの照合前）</span></p>}
+      {open && <div className="space-y-2 border-t border-slate-200 px-3 py-3 text-sm">{children}</div>}
+    </section>
+  );
+}
+
+function Radio({ name, checked, onChange, disabled, children }: { name: string; checked: boolean; onChange: () => void; disabled?: boolean; children: ReactNode }) {
+  return (
+    <label className={`flex items-start gap-2 ${disabled ? 'opacity-60' : ''}`}>
+      <input type="radio" name={name} checked={checked} onChange={onChange} disabled={disabled} className="mt-1 h-4 w-4 accent-teal-600" />
+      <span className="text-slate-900">{children}</span>
+    </label>
+  );
+}
+
+export function Build({ customerId }: { customerId: string }) {
+  const state = useSave();
+  const sim = simByCustomer.get(customerId);
+  const save = customerSave(state, customerId);
+  const plan = sim && save ? planFor(sim, save.month) : undefined;
+  if (!sim || !save || !plan) return null;
+
+  const bp = save.running ?? save.blueprint;
+  const locked = Boolean(save.running);
+  const inCase = save.phase !== 'operate';
+  const name = customerById.get(customerId)?.name ?? customerId;
+  const standby = bp.slots['data-c'] === 'rds-standby';
+  const replica = bp.slots['data-c'] === 'rds-replica';
+  const done = () => {
+    if (inCase) {
+      state.setPhase(customerId, 'verify');
+      go({ name: 'verify', customerId });
+    } else go({ name: 'floor' });
+  };
+
+  return (
+    <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-slate-100">
+      <header className="flex items-center gap-2 px-3 py-2 text-white" style={{ background: '#0f3d3e' }}>
+        <span aria-hidden="true">☰</span>
+        <span className="flex-1 rounded px-2 py-1 text-xs text-cyan-100" style={{ background: '#1f5557' }}>サービスを検索</span>
+        <span className="text-xs">東京 ▾</span>
+      </header>
+      <p className="bg-teal-100 py-1 text-center text-[11px] text-teal-900">練習用・非公式。AWSとは関係ありません</p>
+
+      <main className="flex-1 space-y-3 px-3 py-3">
+        {inCase && <StepBar customerId={customerId} current="build" />}
+        <p className="text-xs text-cyan-700">Amazon RDS ＞ データベース ＞ {name}さんの注文DB ＞ 変更</p>
+        <h1 className="text-lg font-bold text-slate-900">データベースを変更</h1>
+        {locked && <p className="bg-amber-50 px-3 py-2 text-sm text-slate-800">月の途中は設定を変えられません。月末の報告のあとで直せます。</p>}
+
+        <Section title="エンジンのオプション" summary="MySQL" help="このゲームでは、エンジンは MySQL で固定です。">
+          <p className="text-slate-700">MySQL</p>
+        </Section>
+
+        <Section title="可用性と耐久性" summary={standby ? 'マルチ AZ' : 'シングル AZ'} help={HELP.az}>
+          <p className="text-xs text-slate-500">デプロイメントオプション</p>
+          <Radio name="az" checked={!standby} disabled={locked} onChange={() => state.setSlot(customerId, 'data-c', null)}>シングル AZ DB インスタンス</Radio>
+          <Radio name="az" checked={standby} disabled={locked} onChange={() => state.setSlot(customerId, 'data-c', 'rds-standby')}>マルチ AZ DB インスタンス（スタンバイあり）</Radio>
+          {replica && <p className="text-xs text-slate-500">設計図でリードレプリカを置いています。ここを選び直すと、レプリカは外れます。</p>}
+        </Section>
+
+        <Section title="接続" summary={`パブリックアクセス ${bp.dbPublic ? 'あり' : 'なし'}`} help={HELP.conn}>
+          <p className="text-xs text-slate-500">パブリックアクセス</p>
+          <div className="flex gap-6">
+            <Radio name="public" checked={bp.dbPublic} disabled={locked} onChange={() => state.setSetting(customerId, 'dbPublic', true)}>あり</Radio>
+            <Radio name="public" checked={!bp.dbPublic} disabled={locked} onChange={() => state.setSetting(customerId, 'dbPublic', false)}>なし</Radio>
+          </div>
+          <label className="block">
+            <span className="text-xs text-slate-500">VPC セキュリティグループ（インバウンドルール）</span>
+            <select
+              value={bp.dbSgOpen ? 'open' : 'web'} disabled={locked}
+              onChange={(e) => state.setSetting(customerId, 'dbSgOpen', e.target.value === 'open')}
+              className="mt-1 block w-full border border-slate-300 bg-white px-2 py-2 text-sm"
+            >
+              <option value="open">db-sg：MySQL(3306) を 0.0.0.0/0 から許可</option>
+              <option value="web">db-sg：MySQL(3306) を web-sg からのみ許可</option>
+            </select>
+          </label>
+        </Section>
+
+        <Section title="追加設定（バックアップ）" summary={bp.backup ? '有効' : '無効'} help={HELP.backup}>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={bp.backup} disabled={locked} onChange={(e) => state.setSetting(customerId, 'backup', e.target.checked)} className="h-4 w-4 accent-teal-600" />
+            <span className="text-slate-900">自動バックアップを有効にする</span>
+          </label>
+          <p className="text-xs text-slate-500">バックアップ保持期間：{bp.backup ? '7日' : '—'}</p>
+        </Section>
+
+        <div className="flex items-center justify-between bg-white px-3 py-2 text-sm">
+          <span className="text-slate-500">推定月額（構成全体・ゲーム内の値）</span>
+          <span className={`font-bold ${fixedCost(bp) > plan.budget ? 'text-red-700' : 'text-slate-900'}`}>{yen(fixedCost(bp))}<span className="font-normal text-slate-500">／{yen(plan.budget)}</span></span>
+        </div>
+      </main>
+
+      <footer className="sticky bottom-0 flex gap-2 border-t border-slate-300 bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <button type="button" onClick={() => go(inCase ? { name: 'blueprint', customerId } : { name: 'floor' })} className="border border-slate-300 px-4 py-2 text-sm">{inCase ? '② 設計に戻る' : 'キャンセル'}</button>
+        <button type="button" onClick={done} className="flex-1 py-2 text-sm font-bold text-white" style={{ background: '#0d9488' }}>
+          {inCase ? '変更を保存して ④ 検証へ' : '変更を保存'}
+        </button>
+      </footer>
+    </div>
+  );
+}

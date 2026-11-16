@@ -7,8 +7,8 @@ export const pct = (n: number, digits = 1) => `${(n * 100).toFixed(digits)}%`;
 export const GRADE_MARK: Record<Grade, string> = { best: '◎', good: '○', fair: '△', fail: '×' };
 export const GRADE_TEXT: Record<Grade, string> = {
   best: '目標をすべて達成',
-  good: '目標を2つ達成',
-  fair: '目標を1つ達成',
+  good: '目標をほぼ達成',
+  fair: '目標の半分を達成',
   fail: '目標を達成できず',
 };
 

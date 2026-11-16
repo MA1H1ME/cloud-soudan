@@ -35,3 +35,8 @@
   domain: resilient
   requires: [ec2, alb]
   reviewScenarioIds: []
+- id: rds-network-isolation
+  title: データベースをインターネットから切り離す
+  domain: secure
+  requires: [rds, ec2]
+  reviewScenarioIds: []

@@ -12,7 +12,7 @@ const k = simCustomerSchema.parse(parse(readFileSync(join(dir, 'sim/kashiwagi.ya
 const rules = z.array(ruleSchema).parse(parse(readFileSync(join(dir, 'rules.yaml'), 'utf8')));
 const month = (n: number) => k.months.find((m) => m.month === n)!;
 const bp = (over: Partial<Blueprint['slots']> = {}, settings: Partial<Omit<Blueprint, 'slots'>> = {}): Blueprint => ({
-  ...k.start, ...settings, slots: { ...k.start.slots, ...over },
+  ...k.start, backup: true, dbPublic: false, dbSgOpen: false, ...settings, slots: { ...k.start.slots, ...over },
 });
 const run = (n: number, b: Blueprint) => runMonth(k.profitPerVisit, month(n), b);
 const ids = (r: ReturnType<typeof run>) => r.fired.map((f) => f.ruleId);
@@ -96,6 +96,19 @@ describe('3か月目：止められない規模になる', () => {
   });
   it('4か月目も同じ構成で◎', () => {
     expect(run(4, full).grade).toBe('best');
+  });
+});
+
+describe('セキュリティ', () => {
+  it('前任者の構成のまま（公開・接続元を絞らない）だと、不審なアクセスで情報が漏れる', () => {
+    const r = run(1, k.start);
+    expect(ids(r)).toContain('db-exposed');
+    expect(r.kpi.security).toBe(false);
+    expect(r.grade).not.toBe('best');
+  });
+  it('パブリックアクセスか接続元のどちらかを閉じていれば届かない', () => {
+    expect(ids(run(1, bp({}, { dbPublic: true })))).toContain('db-private');
+    expect(ids(run(1, bp({}, { dbSgOpen: true })))).toContain('db-private');
   });
 });
 

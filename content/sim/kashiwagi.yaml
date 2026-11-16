@@ -5,8 +5,45 @@ profitPerVisit: 8
 contractFee: 30000
 start:
   slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }
-  backup: true
+  backup: false
   autoScaling: false
+  dbPublic: true
+  dbSgOpen: true
+hearing:
+  opening: 甥が作ってくれた通販サイトを、これからはプロに見てほしいんです。予算は月3万円まででお願いします。
+  maxQuestions: 4
+  requirements:
+    - { id: budget, check: budget, given: true, label: '予算：月 ¥30,000 まで', unknown: '予算' }
+    - { id: downtime, check: downtime, label: '止まってよい長さ：半日まで', unknown: '止まってよい長さ：未確認' }
+    - { id: data, check: data, label: '注文の記録は必ず残す', unknown: '失ってはいけないデータ：未確認' }
+    - { id: peak, check: peak, label: 'アクセスのピーク：週末セールで約2倍', unknown: 'アクセスのピーク：未確認' }
+    - { id: secure-db, check: secure-db, label: 'DBに住所と電話番号が入る。外から届かないこと', unknown: 'データの機密性：未確認' }
+  questions:
+    - id: q-downtime
+      text: サイトが止まったら、どれくらい困りますか？
+      answer: 半日くらいなら電話で謝れば済みます。それ以上は、さすがにお客さんが離れますね。
+      reveals: downtime
+    - id: q-data
+      text: 絶対に失いたくないものは何ですか？
+      answer: 注文の記録です。これが消えたら、誰に何を送るのか分からなくなります。
+      reveals: data
+    - id: q-peak
+      text: セールや宣伝の予定はありますか？
+      answer: 10日から週末セールをやります。いつもの倍くらいは来てほしいところです。
+      reveals: peak
+    - id: q-secret
+      text: データベースにはどんな情報が入っていますか？
+      answer: お届け先の住所と電話番号が入っています。外に漏れたら店を続けられません。
+      reveals: secure-db
+    - id: q-servers
+      text: サーバーは何台ほしいですか？
+      answer: それが分からないから、お願いしているんですよ。
+    - id: q-cake
+      text: お店の一番人気のお菓子は何ですか？
+      answer: 栗のパウンドケーキです。…あの、サイトの話ですよね？
+    - id: q-predecessor
+      text: 今の構成は誰が作りましたか？
+      answer: 甥が詳しいというので任せました。設定の中身は、私には分かりません。
 comments:
   best: 予算も守れて、お客さんにも迷惑をかけなかった。この調子でお願いします
   good: おおむね満足です。ただ、気になる点が1つありました
@@ -21,6 +58,7 @@ months:
     events:
       - { day: 10, type: spike, label: 週末セール, factor: 2, days: 2 }
       - { day: 18, type: db-failure, label: データベースの障害 }
+      - { day: 24, type: probe, label: データベースへの不審なアクセス }
   - month: 2
     visitsPerDay: 1100
     budget: 40000
@@ -42,5 +80,6 @@ months:
     uptimeTarget: 0.995
     brief: 2号店の準備で忙しくなります。サイトは今の調子で、止まらず、重くならずにお願いします
     events:
+      - { day: 8, type: probe, label: データベースへの不審なアクセス }
       - { day: 15, type: spike, label: 2号店オープン記念セール, factor: 2, days: 2 }
       - { day: 25, type: db-failure, label: データベースの障害 }
