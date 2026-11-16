@@ -1,14 +1,14 @@
 # クラウド相談室（仮）
 
-AWS SAA-C03 の学習用シナリオゲーム（非公式）。新人SEとしてお客さんの相談に構成を提案し、Well-Architected の観点で評価されながら知識を身につける。スマホのブラウザで遊べる静的Webアプリ（PWA）。
+AWS SAA-C03 の学習用の会社経営シム（非公式）。お客さんのシステムを AWS で預かって運用し、起きた出来事の理由から設計の知識を身につける。スマホのブラウザで遊べる静的Webアプリ（PWA）。
 
 ## 開発
 
 ```bash
 npm install
-npm run dev        # 下書きの相談も含めて起動
-npm test           # 評価・復習キュー・条件判定・コンテンツのテスト
-npm run build      # 公開用ビルド（確認済みの相談だけを含める）
+npm run dev        # 下書きのルールも含めて起動
+npm test           # 運用シム・障害対応・案件の生成・復習・コンテンツのテスト
+npm run build      # 公開用ビルド（照合済みのルールと用語だけを含める）
 npx vite preview --port 4173 &   # ビルドしたものを起動
 npm run e2e        # スマホ幅のブラウザで通しで遊ぶ確認（Playwright）
 ```
@@ -49,8 +49,6 @@ content/
   sim/<customer>.yaml お客さんごとの月次計画（訪問数、予算、稼働率の目標、出来事）
   concepts.yaml       学習項目（復習の単位）
   customers.yaml
-  cards.yaml          サービス図鑑
-  scenarios/          カード式の相談（研修編で使う予定。現在の画面からは使っていない）
 scripts/
   validate-content.ts YAMLを検証して src/generated/content.json に書き出す
 src/
@@ -58,7 +56,7 @@ src/
   jobs.ts             お客さんの引き当て（本編と自動生成の案件）、日ごとのメール
   guide.ts            先輩の案内と部品の解禁
   sound.ts            効果音（Web Audio）
-  engine/             カード式の評価・復習キュー・条件判定
+  engine/             復習キュー（忘却曲線に沿った間隔）
   screens/            タイトル、フロア、メール、会社、案件の4ステップ、月次報告、記録、用語図鑑、クリア、引き継ぎ
   components/pixel.tsx ドット絵の部品（すべて自作）
   components/
@@ -72,18 +70,12 @@ src/
 
 `npm run build`（公開用）は、下書きのルールが1件でも残っていると運用シムを含めない。
 
-## 相談を追加・公開するとき
+## 守ること
 
-1. `content/scenarios/<id>.yaml` を書く。最初は `review.status: draft`。
-2. 解説の事実を公式ドキュメントと一文ずつ照合し、`sources` に出典URLと確認日を入れる。
-3. 書いた日とは別の日に読み直してから、`review.status: verified` と `review.verifiedAt` を入れる。
-
-`npm run build` は確認済みの相談だけを含め、学習項目ごとに復習用の相談が2件以上ないと失敗する。
-
-問題や解説を実行時に AI で生成する処理は持たない。実際の試験問題や市販の問題集の文面は使わない。
+問題や解説を実行時に AI で生成する処理は持たない（案件メールは content/jobs.yaml の部品を組み合わせるだけ）。実際の試験問題や市販の問題集の文面は使わない。
 
 ## 公開
 
 `main` への push で GitHub Actions が GitHub Pages にデプロイする。初回だけ、リポジトリの Settings → Pages → Source を「GitHub Actions」にする。
 
-第1段階（身近な人とのテストプレイ）の間は、デプロイは下書きの相談も含めて公開する（`.github/workflows/deploy.yml`）。
+デプロイは照合済みのコンテンツだけでビルドする（`npm run build`、`.github/workflows/deploy.yml`）。

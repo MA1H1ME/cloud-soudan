@@ -1,47 +1,28 @@
-# 学習項目（復習の単位）。仕様書「6. デイリータスクと復習」
-# reviewScenarioIds：この項目を問う復習用の相談（ゲスト客）。公開前に2件以上必要。
+# 学習項目（復習の単位）。ルールとスポット案件がこの id を指す。domain は試験の4分野。
 - id: static-site-delivery
   title: 静的サイトの配信方法の選び方
   domain: cost
-  requires: [s3, s3-website, cloudfront, ec2, alb]
-  reviewScenarioIds: []
 - id: rds-multiaz-vs-read-replica
   title: RDSのマルチAZとリードレプリカの使い分け
   domain: resilient
-  requires: [ec2, alb, rds, rds-backup, rds-multi-az, rds-read-replica]
-  reviewScenarioIds: []
 - id: s3-private-access
   title: 非公開のS3オブジェクトを特定の人に渡す方法
   domain: secure
-  requires: [s3, s3-presigned-url, ec2, iam-user]
-  reviewScenarioIds: []
 - id: ec2-iam-role
   title: EC2上のアプリにAWSの権限を渡す方法
   domain: secure
-  requires: [ec2, iam-role, iam-user, s3]
-  reviewScenarioIds: []
 - id: rds-backup-restore
   title: バックアップで守れるもの、守れないもの
   domain: resilient
-  requires: [rds, rds-backup]
-  reviewScenarioIds: []
 - id: ec2-scaling-and-load-balancing
   title: ロードバランサーと Auto Scaling で負荷に備える
   domain: performant
-  requires: [ec2, alb]
-  reviewScenarioIds: []
 - id: multi-az-web-tier
   title: Web層を複数のAZに置いて止まらなくする
   domain: resilient
-  requires: [ec2, alb]
-  reviewScenarioIds: []
 - id: rds-network-isolation
   title: データベースをインターネットから切り離す
   domain: secure
-  requires: [rds, ec2]
-  reviewScenarioIds: []
 - id: s3-storage-classes
   title: S3 のストレージクラスとライフサイクル
   domain: cost
-  requires: [s3]
-  reviewScenarioIds: []
