@@ -47,9 +47,9 @@ export function businessFor(id: string): string {
 export const isStory = (id: string) => simByCustomer.has(id);
 
 /** その日に届く案件メール（2〜3件）。日付と段階から決まる */
-export function mailsForDay(day: number, stage: number): string[] {
+export function mailsForDay(day: number, stage: number, sales = false): string[] {
   const r = rng(day * 9973 + 17);
-  const n = r.int(2, 3);
+  const n = r.int(2, 3) + (sales ? 1 : 0);
   return Array.from({ length: n }, (_, i) => jobId(day * 10 + i, stage));
 }
 

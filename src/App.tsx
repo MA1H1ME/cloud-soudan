@@ -11,6 +11,9 @@ import { SpotScreen } from './screens/Spot';
 import { Record } from './screens/Record';
 import { Glossary } from './screens/Glossary';
 import { Mail } from './screens/Mail';
+import { CompanyScreen } from './screens/Company';
+import { Ending } from './screens/Ending';
+import { Transfer } from './screens/Transfer';
 import { TermSheet } from './components/Term';
 
 export function App() {
@@ -37,6 +40,12 @@ function Routes() {
       return <Glossary />;
     case 'mail':
       return <Mail />;
+    case 'company':
+      return <CompanyScreen />;
+    case 'ending':
+      return <Ending />;
+    case 'transfer':
+      return <Transfer />;
     case 'hearing':
       return <Hearing customerId={route.customerId} />;
     case 'build':

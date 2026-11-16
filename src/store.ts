@@ -6,6 +6,7 @@ import { conceptById, content, ruleById } from './content';
 import { MAIL_DAYS, mailsForDay, simFor } from './jobs';
 import { addDays, enqueue, gameDate, INTERVAL_DAYS, onReviewAnswered, pickDueReviews, type ReviewItem } from './engine/review';
 import { DAYS, runMonth, type Grade, type MonthResult } from './sim/engine';
+import { verify } from './sim/verify';
 import { LOCKED_SLOTS } from './sim/parts';
 import type { Responses } from './sim/incidents';
 import { UNLOCK_MONTH } from './guide';
@@ -41,6 +42,25 @@ export type Phase = 'hearing' | 'design' | 'build' | 'verify' | 'operate';
 
 export interface Company { name: string; cash: number }
 
+export type StaffKind = 'ops' | 'sales';
+/** 社員。hire：雇う費用、salary：30日ごとの給料、rank：雇えるようになる売上の合計 */
+export const STAFF: Record<StaffKind, { title: string; name: string; hire: number; salary: number; rank: number; desc: string }> = {
+  ops: { title: '運用担当', name: '森', hire: 60000, salary: 20000, rank: 100000, desc: '一度あなたが正しく対応できた種類の障害は、時間を止めずに代わりに対応する' },
+  sales: { title: '営業担当', name: '早瀬', hire: 40000, salary: 15000, rank: 60000, desc: '案件メールが1日1件増え、案件メールの報酬が2割増える' },
+};
+export const PAYDAY = 30;
+export const payroll = (staff: { ops: boolean; sales: boolean }) => (staff.ops ? STAFF.ops.salary : 0) + (staff.sales ? STAFF.sales.salary : 0);
+
+/** 会社のランク（受け取った契約料の合計で決まる） */
+export const RANKS = [
+  { min: 0, name: '個人事務所' },
+  { min: 100000, name: '小さな会社' },
+  { min: 300000, name: '町の頼れる会社' },
+  { min: 600000, name: '評判の会社' },
+  { min: 1000000, name: '業界の注目株' },
+] as const;
+export const rankOf = (revenue: number) => RANKS.reduce((acc, r, i) => (revenue >= r.min ? i : acc), 0);
+
 export const RACK_PRICE = 50000;
 export const MAX_RACKS = 6;
 export const START_RACKS = 3;
@@ -60,6 +80,17 @@ interface SaveState {
   acceptMail: (id: string) => boolean;
   declineMail: (id: string) => void;
   buyRack: () => void;
+  /** 雇った社員 */
+  staff: { ops: boolean; sales: boolean };
+  hire: (kind: StaffKind) => void;
+  /** 正しく対応できた障害の種類（運用担当に任せられる） */
+  learned: string[];
+  /** これまでに受け取った契約料の合計（会社のランク） */
+  revenue: number;
+  endingSeen: boolean;
+  seeEnding: () => void;
+  /** セーブを丸ごと読み込む（引き継ぎ用） */
+  importSave: (data: Partial<SaveState>) => void;
   customers: Record<string, CustomerSave>;
   /** 依頼を受けたお客さん */
   accepted: string[];
@@ -85,7 +116,7 @@ interface SaveState {
   ask: (customerId: string, questionId: string) => void;
   setPhase: (customerId: string, phase: Phase) => void;
   startMonth: (customerId: string) => void;
-  respond: (customerId: string, key: string, optionId: string) => void;
+  respond: (customerId: string, key: string, optionId: string, learn?: { type: string; good: boolean }) => void;
   next: (customerId: string, grade: Grade) => void;
 }
 
@@ -137,11 +168,14 @@ export const useSave = create<SaveState>()(
           if (day <= st.clock) return;
           const stage = unlockStage(st);
           const fresh = stage >= MAIL_STAGE
-            ? Array.from({ length: day - st.clock }, (_, i) => st.clock + 1 + i).flatMap((d) => mailsForDay(d, Math.min(3, stage)).map((id) => ({ id, day: d })))
+            ? Array.from({ length: day - st.clock }, (_, i) => st.clock + 1 + i).flatMap((d) => mailsForDay(d, Math.min(3, stage), st.staff.sales).map((id) => ({ id, day: d })))
             : [];
           // 古いメールは記録から落とす（受けたものは残す）
           const mailLog = [...st.mailLog, ...fresh].filter((m) => day - m.day < 30 || st.mailStatus[m.id] === 'accepted');
-          set({ clock: day, mailLog });
+          // 30日ごとに給料を払う
+          const paydays = Math.floor((day - 1) / PAYDAY) - Math.floor((st.clock - 1) / PAYDAY);
+          const salary = paydays * payroll(st.staff);
+          set({ clock: day, mailLog, company: st.company && salary ? { ...st.company, cash: st.company.cash - salary } : st.company });
         },
         acceptMail: (id) => {
           const st = get();
@@ -169,7 +203,19 @@ export const useSave = create<SaveState>()(
         tips: [],
         dismissTip: (id) => set({ tips: [...new Set([...get().tips, id])] }),
         resetTips: () => set({ tips: [] }),
-        newGame: (name) => set({ company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
+        staff: { ops: false, sales: false },
+        learned: [],
+        revenue: 0,
+        endingSeen: false,
+        seeEnding: () => set({ endingSeen: true }),
+        hire: (kind) => {
+          const st = get();
+          const s = STAFF[kind];
+          if (!st.company || st.staff[kind] || st.company.cash < s.hire || st.revenue < s.rank) return;
+          set({ staff: { ...st.staff, [kind]: true }, company: { ...st.company, cash: st.company.cash - s.hire } });
+        },
+        importSave: (data) => set({ ...data }),
+        newGame: (name) => set({ staff: { ops: false, sales: false }, learned: [], revenue: 0, endingSeen: false, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
         answerSpot: (spotId, passed, firedRuleIds, practice) => {
           const spot = content.spots.find((x) => x.id === spotId);
           const st = get();
@@ -202,14 +248,15 @@ export const useSave = create<SaveState>()(
           }),
         setPhase: (customerId, phase) => update(customerId, (c) => ({ ...c, phase })),
         startMonth: (customerId) => update(customerId, (c) => (c.running ? c : { ...c, running: c.blueprint, startedOn: get().clock, responses: {} })),
-        respond: (customerId, key, optionId) =>
-          update(customerId, (c) => (c.running && !(key in (c.responses ?? {})) ? { ...c, responses: { ...c.responses, [key]: optionId } } : c)),
+        respond: (customerId, key, optionId, learn) => {
+          update(customerId, (c) => (c.running && !(key in (c.responses ?? {})) ? { ...c, responses: { ...c.responses, [key]: optionId } } : c));
+          if (learn?.good) set({ learned: [...new Set([...get().learned, learn.type])] });
+        },
         next: (customerId, grade) => {
           const sim = simFor(customerId);
           const company = get().company;
-          if (sim && company && grade !== 'fail') {
-            set({ company: { ...company, cash: company.cash + sim.contractFee + (grade === 'best' ? BEST_BONUS : 0) } });
-          }
+          const fee = sim ? contractFeeFor(get(), customerId, grade) : 0;
+          if (company && fee > 0) set({ company: { ...company, cash: company.cash + fee + (grade === 'best' ? BEST_BONUS : 0) }, revenue: get().revenue + fee });
           const save = customerSave(get(), customerId);
           const result = sim && save ? runningResult(sim, save) : undefined;
           if (result) {
@@ -247,7 +294,7 @@ export const useSave = create<SaveState>()(
         const base = version < 3 ? { review: {}, seenRules: [], accepted: had, active: had[0] ?? null, ...o } : o;
         // v4：月の経過日数を、会社の暦（clock）と月を始めた日に置き換えた
         const customers = Object.fromEntries(Object.entries(o.customers ?? {}).map(([id, c]) => [id, { ...c, startedOn: c.running ? 1 - (c.day ?? 0) : undefined }]));
-        return { clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, ...base, customers };
+        return { clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, staff: { ops: false, sales: false }, learned: [], revenue: 0, endingSeen: false, ...base, customers };
       }, },
   ),
 );
@@ -278,6 +325,34 @@ export function dueSpots(state: Pick<SaveState, 'review'>): string[] {
     const pick = candidates.find((x) => !lastSeen.has(x.id)) ?? [...candidates].sort((a, b) => (lastSeen.get(a.id) ?? '').localeCompare(lastSeen.get(b.id) ?? ''))[0];
     return pick ? [pick.id] : [];
   });
+}
+
+/**
+ * ヒアリングで聞かなかった要件のうち、構成が満たしていなかったもの（本編の最初の月だけ）。
+ * 聞いていれば防げた失敗なので、お客さんの信頼が下がり、その月の契約料が減る。
+ */
+export function missedRequirements(sim: SimCustomer, save: CustomerSave): { id: string; label: string }[] {
+  const h = sim.hearing;
+  const plan = planFor(sim, save.month);
+  if (!h || h.maxQuestions === 0 || save.month !== 1 || !save.running || !plan) return [];
+  const revealed = new Set(h.questions.filter((q) => save.asked.includes(q.id) && q.reveals).map((q) => q.reveals!));
+  const checks = verify(h, h.questions.map((q) => q.id), save.running, plan, sim.profitPerVisit);
+  return h.requirements
+    .filter((req) => !req.given && !revealed.has(req.id))
+    .filter((req) => checks.find((c) => c.id === req.id)?.status === 'fail')
+    .map((req) => ({ id: req.id, label: req.label }));
+}
+export const MISSED_FACTOR = 0.7;
+
+/** その月に受け取る契約料（不合格なら0。聞き漏らし・営業担当で増減する） */
+export function contractFeeFor(state: Pick<SaveState, 'customers' | 'staff'>, customerId: string, grade: Grade): number {
+  const sim = simFor(customerId);
+  const save = customerSave(state, customerId);
+  if (!sim || !save || grade === 'fail') return 0;
+  let fee = sim.contractFee;
+  if (customerId.startsWith('job-') && state.staff.sales) fee *= 1.2;
+  if (missedRequirements(sim, save).length > 0) fee *= MISSED_FACTOR;
+  return Math.round(fee / 100) * 100;
 }
 
 /** 受信箱の案件メール（期限内で、まだ返事をしていないもの。新しい順） */

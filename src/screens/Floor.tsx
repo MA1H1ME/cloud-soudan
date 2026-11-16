@@ -1,7 +1,7 @@
 // フロア（メイン）：会社の暦を進めて、すべてのラックの運用を同時に眺める。
 // 上半分がオフィス（机のPCでメールを開く）、下半分がサーバールーム（ラック1台＝お客さん1組）。
 import { useEffect, useRef, useState } from 'react';
-import { ruleById } from '../content';
+import { content, ruleById } from '../content';
 import { go } from '../router';
 import { DAYS, monthIncidents, type MonthResult } from '../sim/engine';
 import type { Incident, IncidentOption } from '../sim/incidents';
@@ -9,7 +9,7 @@ import { Term } from '../components/Term';
 import type { Blueprint, PartType } from '../sim/schema';
 import { ticketsFrom } from '../sim/tickets';
 import {
-  MAIL_STAGE, customerSave, dayOf, dueSpots, inbox, onRacks, pastResults, pendingRequests, planFor, runningResult, unlockStage, useSave,
+  MAIL_STAGE, RANKS, STAFF, rankOf, customerSave, dayOf, dueSpots, inbox, onRacks, pastResults, pendingRequests, planFor, runningResult, unlockStage, useSave,
   type CustomerSave,
 } from '../store';
 import { Desk, MONO, Person, PX, Tiles } from '../components/pixel';
@@ -82,6 +82,10 @@ export function Floor() {
   const [outcome, setOutcome] = useState<{ id: string; incident: Incident; option: IncidentOption } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const local = useRef(state.clock);
+  const lastSpeed = useRef(1);
+  useEffect(() => { if (speed > 0) lastSpeed.current = speed; }, [speed]);
+  const rank = rankOf(state.revenue);
+  const lastRank = useRef(rank);
 
   const racks = racksOf(state);
   // 時間を止める日：どこかのラックで判断が要る日か、月末
@@ -105,6 +109,28 @@ export function Floor() {
   }, [mails.length]);
 
   useEffect(() => {
+    const r = racksOf(useSave.getState()).find((x) => x.blocking && useSave.getState().staff.ops && useSave.getState().learned.includes(x.blocking.type));
+    if (!r?.blocking) return;
+    const good = r.blocking.options.find((o) => o.good)!;
+    useSave.getState().respond(r.id, r.blocking.key, good.id, { type: r.blocking.type, good: true });
+    setToast(`🧑‍💻 運用担当の${STAFF.ops.name}さんが対応：${good.label}`);
+    const t = setTimeout(() => setToast(null), 2600);
+    setSpeed(lastSpeed.current);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.clock, state.staff.ops]);
+
+  useEffect(() => {
+    if (rank > lastRank.current) {
+      setToast(`🎉 会社が「${RANKS[rank]!.name}」になりました！`);
+      const t = setTimeout(() => setToast(null), 3000);
+      lastRank.current = rank;
+      return () => clearTimeout(t);
+    }
+    lastRank.current = rank;
+  }, [rank]);
+
+  useEffect(() => {
     if (speed === 0) return;
     local.current = useSave.getState().clock;
     let frame = 0, prev = performance.now();
@@ -126,9 +152,16 @@ export function Floor() {
   useEffect(() => {
     if (!company) go({ name: 'title' });
   }, [company]);
+  // 本編の3人の契約をすべて終えたら、一度だけクリア画面を出す
+  const storyDone = content.sim.length > 0 && content.sim.every((s) => state.accepted.includes(s.customerId) && !racks.some((r) => r.id === s.customerId));
+  useEffect(() => {
+    if (storyDone && !state.endingSeen) go({ name: 'ending' });
+  }, [storyDone, state.endingSeen]);
   if (!company) return null;
 
-  const blockingRack = racks.find((r) => r.blocking);
+  // 運用担当がいれば、前に正しく対応できた種類の障害は代わりに対応する
+  const canDelegate = (inc?: Incident) => Boolean(inc && state.staff.ops && state.learned.includes(inc.type));
+  const blockingRack = racks.find((r) => r.blocking && !canDelegate(r.blocking));
   const reportRack = racks.find((r) => r.reportReady);
   const MAIN = outcome?.id ?? blockingRack?.id ?? (racks.some((r) => r.id === state.active) ? state.active! : racks[0]?.id ?? '');
   const main = racks.find((r) => r.id === MAIN);
@@ -142,6 +175,7 @@ export function Floor() {
       <nav aria-label="メニュー" onClick={(e) => e.stopPropagation()} className="mr-2 mt-12 w-56 space-y-1 border-2 border-white p-2 text-sm text-white" style={{ background: PX.box }}>
         {[
           { label: `メール${unread ? `（${unread}）` : ''}`, on: () => go({ name: 'mail' }) },
+          { label: '会社（社員・ラック・ランク）', on: () => go({ name: 'company' }) },
           { label: '学習記録', on: () => go({ name: 'record' }) },
           { label: '用語図鑑', on: () => go({ name: 'glossary' }) },
           { label: '先輩の案内をもう一度見る', on: () => { state.resetTips(); setMenu(false); } },
@@ -161,11 +195,7 @@ export function Floor() {
   const recent = result ? result.fired.filter((f) => f.day <= day && f.day > day - 3) : [];
   const latest = recent.at(-1);
   const alarm = racks.some((r) => r.result && r.day > 0 && r.result.fired.some((f) => f.day <= r.day && f.day > r.day - 3 && ruleById.get(f.ruleId)?.tone === 'bad'));
-  const allBest = state.accepted.flatMap((id) => {
-    const sm = simFor(id), sv = customerSave(state, id);
-    return sm && sv ? pastResults(sm, sv).filter((p) => p.result.grade === 'best') : [];
-  }).length;
-  const stars = Math.min(5, 1 + Math.floor(allBest / 3));
+  const stars = rank + 1;
   const before = main ? !main.save.running : false;
   const inCase = main ? main.save.phase !== 'operate' : false;
   const free = state.racks - racks.length;
@@ -189,10 +219,10 @@ export function Floor() {
       <header className="flex items-center justify-between px-3 py-2 text-sm text-white" style={{ background: '#1b2333', fontFamily: MONO }}>
         <span>{state.clock}日目</span>
         <span className="font-bold text-yellow-300">{yen(company.cash)}</span>
-        <span className="text-yellow-300" aria-label={`評判 ${stars}`}>{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>
+        <span className="text-yellow-300" aria-label={`会社のランク ${RANKS[rank]!.name}`}>{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>
         <button type="button" onClick={() => { setSpeed(0); setMenu(true); }} aria-label="メニュー" className="px-1 text-base text-white">☰</button>
       </header>
-      <p className="truncate px-3 py-1 text-[11px] text-slate-300" style={{ background: '#1b2333' }}>{company.name}　ラック {racks.length}／{state.racks}</p>
+      <p className="truncate px-3 py-1 text-[11px] text-slate-300" style={{ background: '#1b2333' }}>{company.name}（{RANKS[rank]!.name}）　ラック {racks.length}／{state.racks}</p>
       {menuSheet}
 
       <div className="relative">
@@ -224,6 +254,8 @@ export function Floor() {
           ) : (
             <Person x={111} y={46} shirt="#e8a33d" />
           )}
+          {state.staff.ops && <Person x={187} y={46} shirt="#7a4fd8" />}
+          {state.staff.sales && <Person x={214} y={80} shirt="#d84f7a" />}
           <rect x="244" y="66" width="12" height="10" fill={PX.pot} /><rect x="240" y="52" width="20" height="14" fill={PX.plant} />
 
           {Array.from({ length: state.racks }, (_, i) => {
@@ -357,7 +389,7 @@ export function Floor() {
                 <p className="text-slate-700">{blockingRack.blocking.question}</p>
                 <div className="space-y-2">
                   {blockingRack.blocking.options.map((o) => (
-                    <button key={o.id} type="button" onClick={() => { state.respond(blockingRack.id, blockingRack.blocking!.key, o.id); setOutcome({ id: blockingRack.id, incident: blockingRack.blocking!, option: o }); }}
+                    <button key={o.id} type="button" onClick={() => { state.respond(blockingRack.id, blockingRack.blocking!.key, o.id, { type: blockingRack.blocking!.type, good: o.good }); setOutcome({ id: blockingRack.id, incident: blockingRack.blocking!, option: o }); }}
                       className="w-full border-2 border-slate-300 px-3 py-2 text-left active:bg-slate-100">
                       {o.label}
                     </button>
