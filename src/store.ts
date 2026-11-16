@@ -2,13 +2,17 @@
 // 結果は保存せず、「その月に使った構成」だけを残して毎回計算し直す（計算は決定的）。
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { simByCustomer } from './content';
+import { conceptById, content, ruleById, simByCustomer } from './content';
+import { addDays, enqueue, gameDate, INTERVAL_DAYS, onReviewAnswered, pickDueReviews, type ReviewItem } from './engine/review';
 import { DAYS, runMonth, type Grade, type MonthResult } from './sim/engine';
 import { LOCKED_SLOTS } from './sim/parts';
 import type { Blueprint, MonthPlan, PartType, SimCustomer, Slot } from './sim/schema';
 
 export const START_CASH = 300000;
 export const BEST_BONUS = 10000;
+export const SPOT_REWARD = 5000;
+
+export const today = () => gameDate(new Date());
 
 export interface CustomerSave {
   month: number;
@@ -31,6 +35,11 @@ export interface Company { name: string; cash: number }
 interface SaveState {
   company: Company | null;
   customers: Record<string, CustomerSave>;
+  /** conceptId → 復習の状態（忘却曲線に沿って間隔を広げる） */
+  review: Record<string, ReviewItem>;
+  /** これまでに出会ったルール */
+  seenRules: string[];
+  answerSpot: (spotId: string, passed: boolean, firedRuleIds: string[], practice: boolean) => void;
   newGame: (name: string) => void;
   setSlot: (customerId: string, slot: Slot, part: PartType | null) => void;
   setSetting: (customerId: string, key: 'backup' | 'autoScaling' | 'dbPublic' | 'dbSgOpen', value: boolean) => void;
@@ -60,7 +69,24 @@ export const useSave = create<SaveState>()(
       return {
         company: null,
         customers: {},
-        newGame: (name) => set({ company: { name, cash: START_CASH }, customers: {} }),
+        review: {},
+        seenRules: [],
+        newGame: (name) => set({ company: { name, cash: START_CASH }, customers: {}, review: {}, seenRules: [] }),
+        answerSpot: (spotId, passed, firedRuleIds, practice) => {
+          const spot = content.spots.find((x) => x.id === spotId);
+          const st = get();
+          if (!spot) return;
+          const seenRules = [...new Set([...st.seenRules, ...firedRuleIds])];
+          if (practice) return set({ seenRules });
+          const day = today();
+          const prev = st.review[spot.conceptId] ?? enqueue(spot.conceptId, spotId, 1, day);
+          const item = onReviewAnswered(prev, passed ? 'best' : 'fail', spotId, day);
+          set({
+            seenRules,
+            review: { ...st.review, [spot.conceptId]: item },
+            company: st.company && passed ? { ...st.company, cash: st.company.cash + SPOT_REWARD } : st.company,
+          });
+        },
         setSlot: (customerId, slot, part) =>
           update(customerId, (c) => {
             if (LOCKED_SLOTS.includes(slot) || c.running) return c;
@@ -84,6 +110,24 @@ export const useSave = create<SaveState>()(
           if (sim && company && grade !== 'fail') {
             set({ company: { ...company, cash: company.cash + sim.contractFee + (grade === 'best' ? BEST_BONUS : 0) } });
           }
+          const save = customerSave(get(), customerId);
+          const result = sim && save ? runningResult(sim, save) : undefined;
+          if (result) {
+            const day = today();
+            const review = { ...get().review };
+            const byConcept = new Map<string, boolean>();
+            for (const f of result.fired) {
+              const rule = ruleById.get(f.ruleId);
+              if (rule) byConcept.set(rule.conceptId, (byConcept.get(rule.conceptId) ?? false) || rule.tone === 'bad');
+            }
+            for (const [conceptId, bad] of byConcept) {
+              const prev = review[conceptId];
+              // つまずいた項目は翌日、うまくいった項目は1週間後に確認する
+              if (!prev) review[conceptId] = enqueue(conceptId, `${customerId}-m${save!.month}`, bad ? 1 : 3, day);
+              else if (bad && !prev.mastered) review[conceptId] = { ...prev, stage: 1, lapses: prev.lapses + 1, dueOn: addDays(day, INTERVAL_DAYS[1]) };
+            }
+            set({ review, seenRules: [...new Set([...get().seenRules, ...result.fired.map((f) => f.ruleId)])] });
+          }
           update(customerId, (c) =>
             c.running
               ? { ...c, month: c.month + 1, running: null, day: 0, history: [...c.history, { month: c.month, blueprint: c.running }] }
@@ -92,7 +136,7 @@ export const useSave = create<SaveState>()(
         },
       };
     },
-    { name: 'cloud-soudan-company-2', version: 1 },
+    { name: 'cloud-soudan-company-2', version: 2, migrate: (old) => ({ review: {}, seenRules: [], ...(old as object) }) },
   ),
 );
 
@@ -111,5 +155,15 @@ export function pastResults(sim: SimCustomer, save: CustomerSave): { month: numb
   return save.history.flatMap((h) => {
     const plan = planFor(sim, h.month);
     return plan ? [{ month: h.month, result: runMonth(sim.profitPerVisit, plan, h.blueprint) }] : [];
+  });
+}
+
+/** 今日出すスポット案件（期限の古い順に最大3件）。学習項目ごとに、まだ見ていない案件を優先する。 */
+export function dueSpots(state: Pick<SaveState, 'review'>): string[] {
+  return pickDueReviews(Object.values(state.review), conceptById, today()).flatMap((item) => {
+    const candidates = content.spots.filter((x) => x.conceptId === item.conceptId);
+    const lastSeen = new Map(item.seen.map((x) => [x.scenarioId, x.seenOn]));
+    const pick = candidates.find((x) => !lastSeen.has(x.id)) ?? [...candidates].sort((a, b) => (lastSeen.get(a.id) ?? '').localeCompare(lastSeen.get(b.id) ?? ''))[0];
+    return pick ? [pick.id] : [];
   });
 }

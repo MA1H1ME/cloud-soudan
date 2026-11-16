@@ -25,9 +25,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      # 第1段階のテストプレイ中は下書きも含めて公開する。
-      # 確認済みの相談だけを公開する段階になったら build:draft を build に替える。
-      - run: npm run build:draft
+      # 確認済み（公式ドキュメントと照合済み）のルールだけで公開する
+      - run: npm run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@v3

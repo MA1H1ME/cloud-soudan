@@ -20,6 +20,7 @@ import {
 } from '../src/content/schema';
 import { ruleSchema, simCustomerSchema, type SimCustomer } from '../src/sim/schema';
 import { RULE_IDS } from '../src/sim/engine';
+import { judgeSpot, spotSchema } from '../src/sim/spot';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const contentDir = join(root, 'content');
@@ -164,16 +165,30 @@ export function validate(dir: string, allowDraft: boolean): Report {
     }
     sim.push(c);
   }
+  // スポット案件（復習用）
+  let spots = load(join(dir, 'spots.yaml'), z.array(spotSchema), errors) ?? [];
+  dup('spot', spots.map((x) => x.id));
+  for (const sp of spots) {
+    if (!conceptIds.has(sp.conceptId)) errors.push(`spot ${sp.id}: 存在しない学習項目 ${sp.conceptId}`);
+    for (const a of sp.avoid) if (!ruleIds.has(a)) errors.push(`spot ${sp.id}: avoid に存在しないルール ${a}`);
+    const pass = sp.options.filter((o) => judgeSpot(sp, o.id).passed).length;
+    if (pass === 0 || pass === sp.options.length) errors.push(`spot ${sp.id}: 合格する選択肢と不合格の選択肢の両方が必要です（合格 ${pass} 件）`);
+  }
+  for (const c of new Set(rules.map((r) => r.conceptId))) {
+    const n = spots.filter((x) => x.conceptId === c).length;
+    if (n < 2) (allowDraft ? warnings : errors).push(`concept ${c}: スポット案件が${n}件です（2件以上必要）`);
+  }
   const draftRules = rules.filter((r) => r.review.status !== 'verified').length;
   if (!allowDraft && draftRules > 0) {
     // 照合前のルールが残っている間は、運用シムを公開用ビルドに含めない
     warnings.push(`下書きのルールが ${draftRules} 件あるため、運用シムは公開用ビルドから除外しました`);
     sim = [];
+    spots = [];
   }
 
   if (!allowDraft && drafts > 0) warnings.push(`下書きの相談 ${drafts} 件は公開用ビルドから除外しました`);
 
-  return { errors, warnings, bundle: { scenarios: selected, concepts, customers, cards, rules, sim } };
+  return { errors, warnings, bundle: { scenarios: selected, concepts, customers, cards, rules, sim, spots } };
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

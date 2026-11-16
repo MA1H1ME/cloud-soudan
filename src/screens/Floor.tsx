@@ -6,7 +6,8 @@ import { go } from '../router';
 import { DAYS, type MonthResult } from '../sim/engine';
 import type { Blueprint, PartType } from '../sim/schema';
 import { ticketsFrom } from '../sim/tickets';
-import { customerSave, pastResults, planFor, runningResult, useSave } from '../store';
+import { customerSave, dueSpots, pastResults, planFor, runningResult, SPOT_REWARD, useSave } from '../store';
+import { spotById } from '../content';
 import { Desk, MONO, Person, PX, Tiles } from '../components/pixel';
 import { yen } from '../components/ui';
 
@@ -170,6 +171,19 @@ export function Floor() {
         )}
       </div>
 
+      {before && dueSpots(state).length > 0 && (
+        <section className="space-y-1 border-t-2 border-yellow-300 px-3 py-2 text-white" style={{ background: '#3b2f0b' }}>
+          <p className="text-xs font-bold text-yellow-300">☎ スポット案件（1件 +{yen(SPOT_REWARD)}）</p>
+          {dueSpots(state).map((id) => {
+            const sp = spotById.get(id);
+            return sp ? (
+              <button key={id} type="button" onClick={() => go({ name: 'spot', spotId: id, practice: false })} className="block w-full border border-yellow-300/60 px-2 py-1.5 text-left text-sm">
+                {sp.guest}（{sp.business}）
+              </button>
+            ) : null;
+          })}
+        </section>
+      )}
       {before && plan && (
         <section className="space-y-2 border-t-2 border-white px-3 py-3 text-white" style={{ background: PX.box }}>
           <p className="text-xs font-bold text-yellow-300">☎ {name}さん（{save.month}か月目）</p>
@@ -217,7 +231,7 @@ inCase ? (
           {[
             { label: '設計図', on: before && !finished && !inCase, go: () => go({ name: 'blueprint', customerId: MAIN }), note: '月初だけ' },
             { label: '構築', on: before && !finished && !inCase, go: () => go({ name: 'build', customerId: MAIN }), note: '月初だけ' },
-            { label: '顧客', on: false, note: '準備中' },
+            { label: '記録', on: true, go: () => go({ name: 'record' }), note: '' },
             { label: '報告', on: Boolean(result && day >= DAYS), go: () => go({ name: 'report', customerId: MAIN }), note: '月末' },
           ].map((m) => (
             <button key={m.label} type="button" disabled={!m.on} onClick={m.go}

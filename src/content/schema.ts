@@ -2,6 +2,7 @@
 // 仕様書「9. データ構造」に対応する。型はこのスキーマから導出する。
 import { z } from 'zod';
 import type { Rule, SimCustomer } from '../sim/schema';
+import type { Spot } from '../sim/spot';
 
 export const PILLARS = ['security', 'reliability', 'performance', 'cost', 'operations'] as const;
 export const PILLAR_LABELS: Record<Pillar, string> = {
@@ -150,4 +151,5 @@ export interface ContentBundle {
   cards: Card[];
   rules: Rule[];
   sim: SimCustomer[];
+  spots: Spot[];
 }
