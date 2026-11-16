@@ -78,6 +78,16 @@ export function candidates(kind: JobKind, unlocked: (p: PartType) => boolean): B
 
 const yen = (n: number) => `¥${Math.round(n).toLocaleString('ja-JP')}`;
 
+/** 目標をすべて満たす構成のうち、いちばん安いもの（模範の構成）。なければ undefined */
+export function modelAnswer(profit: number, plan: MonthPlan, kind: JobKind, unlocked: (p: PartType) => boolean): Blueprint | undefined {
+  let best: { bp: Blueprint; cost: number } | undefined;
+  for (const bp of candidates(kind, unlocked)) {
+    const r = runMonth(profit, plan, bp);
+    if (r.grade === 'best' && (!best || r.cost < best.cost)) best = { bp, cost: r.cost };
+  }
+  return best?.bp;
+}
+
 /** 予算を除いた3つの目標を満たす構成のうち、いちばん安いものの費用 */
 function cheapestBest(profit: number, plan: MonthPlan, cands: Blueprint[]): number | null {
   let min: number | null = null;
