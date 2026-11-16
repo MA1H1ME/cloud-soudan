@@ -16,6 +16,7 @@ import { Desk, MONO, Person, PX, Tiles } from '../components/pixel';
 import { yen } from '../components/ui';
 import { Senpai, SenpaiLine } from '../components/Senpai';
 import { isStory, jobFor, nameFor, simFor } from '../jobs';
+import { sfx } from '../sound';
 
 const SECONDS_PER_DAY = 0.5;
 const W = 288, H = 300;
@@ -100,6 +101,7 @@ export function Floor() {
 
   useEffect(() => {
     if (mails.length > lastUnread.current) {
+      sfx.mail();
       setToast(`📧 新しい案件メールが ${mails.length - lastUnread.current} 件届きました`);
       const t = setTimeout(() => setToast(null), 2200);
       lastUnread.current = mails.length;
@@ -113,6 +115,7 @@ export function Floor() {
     if (!r?.blocking) return;
     const good = r.blocking.options.find((o) => o.good)!;
     useSave.getState().respond(r.id, r.blocking.key, good.id, { type: r.blocking.type, good: true });
+    sfx.good();
     setToast(`🧑‍💻 運用担当の${STAFF.ops.name}さんが対応：${good.label}`);
     const t = setTimeout(() => setToast(null), 2600);
     setSpeed(lastSpeed.current);
@@ -122,6 +125,7 @@ export function Floor() {
 
   useEffect(() => {
     if (rank > lastRank.current) {
+      sfx.fanfare();
       setToast(`🎉 会社が「${RANKS[rank]!.name}」になりました！`);
       const t = setTimeout(() => setToast(null), 3000);
       lastRank.current = rank;
@@ -162,6 +166,8 @@ export function Floor() {
   // 運用担当がいれば、前に正しく対応できた種類の障害は代わりに対応する
   const canDelegate = (inc?: Incident) => Boolean(inc && state.staff.ops && state.learned.includes(inc.type));
   const blockingRack = racks.find((r) => r.blocking && !canDelegate(r.blocking));
+  const blockingKey = blockingRack ? `${blockingRack.id}-${blockingRack.blocking!.key}` : '';
+  useEffect(() => { if (blockingKey) sfx.alarm(); }, [blockingKey]);
   const reportRack = racks.find((r) => r.reportReady);
   const MAIN = outcome?.id ?? blockingRack?.id ?? (racks.some((r) => r.id === state.active) ? state.active! : racks[0]?.id ?? '');
   const main = racks.find((r) => r.id === MAIN);
@@ -179,6 +185,7 @@ export function Floor() {
           { label: '学習記録', on: () => go({ name: 'record' }) },
           { label: '用語図鑑', on: () => go({ name: 'glossary' }) },
           { label: '先輩の案内をもう一度見る', on: () => { state.resetTips(); setMenu(false); } },
+          { label: `効果音：${state.sound ? 'オン' : 'オフ'}`, on: () => state.setSound(!state.sound) },
           { label: 'タイトルへ戻る', on: () => go({ name: 'title' }) },
         ].map((m) => (
           <button key={m.label} type="button" onClick={() => { setSpeed(0); m.on(); }} className="block w-full px-2 py-2 text-left active:bg-white/10">{m.label}</button>
@@ -389,7 +396,7 @@ export function Floor() {
                 <p className="text-slate-700">{blockingRack.blocking.question}</p>
                 <div className="space-y-2">
                   {blockingRack.blocking.options.map((o) => (
-                    <button key={o.id} type="button" onClick={() => { state.respond(blockingRack.id, blockingRack.blocking!.key, o.id, { type: blockingRack.blocking!.type, good: o.good }); setOutcome({ id: blockingRack.id, incident: blockingRack.blocking!, option: o }); }}
+                    <button key={o.id} type="button" onClick={() => { state.respond(blockingRack.id, blockingRack.blocking!.key, o.id, { type: blockingRack.blocking!.type, good: o.good }); (o.good ? sfx.good : sfx.bad)(); setOutcome({ id: blockingRack.id, incident: blockingRack.blocking!, option: o }); }}
                       className="w-full border-2 border-slate-300 px-3 py-2 text-left active:bg-slate-100">
                       {o.label}
                     </button>

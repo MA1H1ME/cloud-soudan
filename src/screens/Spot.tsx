@@ -5,6 +5,7 @@ import { BlueprintView } from '../components/BlueprintView';
 import { StaticView } from '../components/StaticView';
 import { RuleSources } from '../components/RuleSources';
 import { Senpai } from '../components/Senpai';
+import { sfx } from '../sound';
 import { Face, PrimaryButton, Screen, Stamp, pct, yen } from '../components/ui';
 import { go } from '../router';
 import { fixedCost } from '../sim/engine';
@@ -25,6 +26,7 @@ export function SpotScreen({ spotId, practice }: { spotId: string; practice: boo
   const submit = () => {
     if (!choice) return;
     const o = judgeSpot(spot, choice);
+    (o.passed ? sfx.good : sfx.bad)();
     answerSpot(spot.id, o.passed, o.result.fired.map((f) => f.ruleId), practice);
     setAnswered(true);
     window.scrollTo(0, 0);

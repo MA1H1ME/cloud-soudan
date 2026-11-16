@@ -7,6 +7,7 @@ import { MAIL_DAYS, mailsForDay, simFor } from './jobs';
 import { addDays, enqueue, gameDate, INTERVAL_DAYS, onReviewAnswered, pickDueReviews, type ReviewItem } from './engine/review';
 import { DAYS, runMonth, type Grade, type MonthResult } from './sim/engine';
 import { verify } from './sim/verify';
+import { setSoundEnabled, sfx } from './sound';
 import { LOCKED_SLOTS } from './sim/parts';
 import type { Responses } from './sim/incidents';
 import { UNLOCK_MONTH } from './guide';
@@ -89,6 +90,9 @@ interface SaveState {
   revenue: number;
   endingSeen: boolean;
   seeEnding: () => void;
+  /** 効果音 */
+  sound: boolean;
+  setSound: (on: boolean) => void;
   /** セーブを丸ごと読み込む（引き継ぎ用） */
   importSave: (data: Partial<SaveState>) => void;
   customers: Record<string, CustomerSave>;
@@ -187,6 +191,7 @@ export const useSave = create<SaveState>()(
         buyRack: () => {
           const st = get();
           if (!st.company || st.racks >= MAX_RACKS || st.company.cash < RACK_PRICE) return;
+          sfx.coin();
           set({ racks: st.racks + 1, company: { ...st.company, cash: st.company.cash - RACK_PRICE } });
         },
         customers: {},
@@ -208,10 +213,13 @@ export const useSave = create<SaveState>()(
         revenue: 0,
         endingSeen: false,
         seeEnding: () => set({ endingSeen: true }),
+        sound: true,
+        setSound: (on) => { setSoundEnabled(on); set({ sound: on }); },
         hire: (kind) => {
           const st = get();
           const s = STAFF[kind];
           if (!st.company || st.staff[kind] || st.company.cash < s.hire || st.revenue < s.rank) return;
+          sfx.fanfare();
           set({ staff: { ...st.staff, [kind]: true }, company: { ...st.company, cash: st.company.cash - s.hire } });
         },
         importSave: (data) => set({ ...data }),
@@ -256,6 +264,7 @@ export const useSave = create<SaveState>()(
           const sim = simFor(customerId);
           const company = get().company;
           const fee = sim ? contractFeeFor(get(), customerId, grade) : 0;
+          if (company && fee > 0) sfx.coin();
           if (company && fee > 0) set({ company: { ...company, cash: company.cash + fee + (grade === 'best' ? BEST_BONUS : 0) }, revenue: get().revenue + fee });
           const save = customerSave(get(), customerId);
           const result = sim && save ? runningResult(sim, save) : undefined;
@@ -384,3 +393,7 @@ export function unlockStage(state: Pick<SaveState, 'customers' | 'accepted'>): n
 export function partUnlocked(state: Pick<SaveState, 'customers' | 'accepted'>, part: PartType): boolean {
   return unlockStage(state) >= (UNLOCK_MONTH[part] ?? 1);
 }
+
+// 保存してある設定を効果音に反映する
+useSave.persist.onFinishHydration((st) => setSoundEnabled(st.sound));
+setSoundEnabled(useSave.getState().sound);
