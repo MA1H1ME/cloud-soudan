@@ -1,0 +1,84 @@
+# 氷室さん（クリニック向け予約サービス）の運用シム。セキュリティ最優先。
+# 検査結果のPDFを Amazon S3 に置き、患者本人に渡す。設定は架空で、医療の法令への適合は扱わない。
+customerId: himuro
+profitPerVisit: 20
+contractFee: 50000
+priority: security
+features: [files]
+request:
+  pitch: クリニック向けの予約サービスを運営しています。検査結果のPDFを患者さんに渡す機能を足したところで、導入先の審査が近いんです。根拠を説明できる構成にしてください。
+  after: { customerId: kashiwagi, month: 1 }
+start:
+  slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }
+  backup: true
+  autoScaling: false
+  dbPublic: false
+  dbSgOpen: false
+  s3Public: true
+  credential: access-key
+comments:
+  best: 説明のつく構成です。導入先にも胸を張って出せます
+  good: おおむね良いですが、1点だけ説明に困るところがありました
+  fair: このままでは次の審査が不安です。根拠を整理して出直してください
+  fail: 患者さんの情報を預かる立場として、これは受け入れられません
+hearing:
+  opening: 費用や速度は二の次です。患者さんの情報を守れているか、それを説明できるか。そこを見てください。予算は月8万円まであります。
+  maxQuestions: 4
+  requirements:
+    - { id: budget, check: budget, given: true, label: '予算：月 ¥80,000 まで', unknown: '予算' }
+    - { id: files, check: s3-private, label: '検査結果は本人以外に見えてはいけない', unknown: 'ファイルを見られる人の範囲：未確認' }
+    - { id: keys, check: no-keys, label: 'サーバーに長期の認証情報を置かない', unknown: '審査で見られる点：未確認' }
+    - { id: scope, check: least-privilege, label: 'アプリが触れるのは検査結果のバケットだけ', unknown: 'アプリの権限の範囲：未確認' }
+    - { id: downtime, check: downtime, label: '止まってよい長さ：半日まで', unknown: '止まってよい長さ：未確認' }
+  questions:
+    - id: q-files
+      text: 検査結果のPDFは、誰が見られるべきですか？
+      answer: ログインした患者さん本人だけです。URLを知っていれば開ける、というのは論外です。
+      reveals: files
+    - id: q-audit
+      text: 導入先の審査では、何を見られますか？
+      answer: 必ず聞かれるのが「サーバーに認証情報を置きっぱなしにしていないか」です。前の業者はキーを設定ファイルに書いていました。
+      reveals: keys
+    - id: q-scope
+      text: アプリが触る必要のあるデータは、どこまでですか？
+      answer: 検査結果のバケットだけです。経理の書類を入れたバケットもありますが、アプリには関係ありません。
+      reveals: scope
+    - id: q-downtime
+      text: サービスが止まったら、どれくらい困りますか？
+      answer: 予約は電話でも受けられるので、半日までなら何とかなります。
+      reveals: downtime
+    - id: q-doctors
+      text: 導入先のクリニックは、何科が多いですか？
+      answer: 内科と歯科です。…構成に関係がありますか？
+    - id: q-color
+      text: 管理画面の色は、何色がお好みですか？
+      answer: 色は結構です。安全かどうかを聞いています。
+    - id: q-logo
+      text: 会社のロゴは、どなたが作ったのですか？
+      answer: 創業メンバーです。話を戻してもよろしいですか。
+months:
+  - month: 1
+    visitsPerDay: 500
+    budget: 80000
+    uptimeTarget: 0.98
+    brief: 22日に導入先クリニックのセキュリティ審査があります。それまでに、説明のつく構成にしておいてください
+    events:
+      - { day: 12, type: bucket-probe, label: 検査結果のURLへの不審なアクセス }
+      - { day: 22, type: audit, label: 導入先のセキュリティ審査 }
+  - month: 2
+    visitsPerDay: 900
+    budget: 80000
+    uptimeTarget: 0.995
+    brief: 導入先が増えました。健診シーズンは予約が集中します。もう半日止まるのは許されない規模です
+    events:
+      - { day: 9, type: spike, label: 健診シーズンの予約集中, factor: 2, days: 3 }
+      - { day: 20, type: db-failure, label: データベースの障害 }
+  - month: 3
+    visitsPerDay: 1300
+    budget: 90000
+    uptimeTarget: 0.995
+    brief: 大きな病院グループが検討してくれています。25日に、これまでで一番厳しい審査があります
+    events:
+      - { day: 5, type: bucket-probe, label: 検査結果のURLへの不審なアクセス }
+      - { day: 15, type: az-outage, label: AZ-a の障害 }
+      - { day: 25, type: audit, label: 病院グループのセキュリティ審査 }

@@ -9,6 +9,8 @@ import { fixedCost } from '../sim/engine';
 import { customerSave, planFor, useSave } from '../store';
 
 // 「情報」の説明文。content/rules.yaml と同じ公式ドキュメントと照合済み（2026-11-16）。
+const HELP_S3 = 'Amazon S3 のバケットとオブジェクトは、デフォルトでは公開されません。ブロックパブリックアクセスは、ポリシーやアクセス許可より優先して公開を制限します。特定の人に渡すときは、署名付きURLで期限つきのアクセスを許可できます。';
+const HELP_IAM = 'EC2 に IAM ロールを割り当てると、アプリケーションは一時的な認証情報を受け取って使えます。IAMユーザーの長期の認証情報（アクセスキー）を配る必要がありません。権限は、作業に必要な分だけを与えます（最小権限）。';
 const HELP = {
   az: 'マルチ AZ DB インスタンスでは、別のアベイラビリティーゾーンに待機系（スタンバイ）が置かれ、本体から同期的に複製されます。本体に障害が起きると、自動で待機系に切り替わります。待機系を読み取りに使うことはできません。',
   conn: 'パブリックアクセスを「あり」にすると、インターネットから届くパブリックIPアドレスが割り当てられます。セキュリティグループのルールは、届く通信を制御します。接続元には、IPアドレスの範囲のほかに、別のセキュリティグループも指定できます。',
@@ -55,6 +57,8 @@ export function Build({ customerId }: { customerId: string }) {
   const name = customerById.get(customerId)?.name ?? customerId;
   const standby = bp.slots['data-c'] === 'rds-standby';
   const replica = bp.slots['data-c'] === 'rds-replica';
+  const files = sim.features.includes('files');
+  const [service, setService] = useState<'rds' | 's3' | 'iam'>('rds');
   const done = () => {
     if (inCase) {
       state.setPhase(customerId, 'verify');
@@ -73,9 +77,17 @@ export function Build({ customerId }: { customerId: string }) {
 
       <main className="flex-1 space-y-3 px-3 py-3">
         {inCase && <StepBar customerId={customerId} current="build" />}
+        {files && (
+          <nav className="flex gap-1 text-xs" aria-label="サービス">
+            {([['rds', 'Amazon RDS'], ['s3', 'Amazon S3'], ['iam', 'IAM']] as const).map(([id, label]) => (
+              <button key={id} type="button" aria-pressed={service === id} onClick={() => setService(id)} className={`flex-1 border py-2 ${service === id ? 'border-teal-700 bg-white font-bold text-teal-800' : 'border-slate-300 bg-slate-50 text-slate-600'}`}>{label}</button>
+            ))}
+          </nav>
+        )}
+        {locked && <p className="bg-amber-50 px-3 py-2 text-sm text-slate-800">月の途中は設定を変えられません。月末の報告のあとで直せます。</p>}
+        {service === 'rds' && (<>
         <p className="text-xs text-cyan-700">Amazon RDS ＞ データベース ＞ {name}さんの注文DB ＞ 変更</p>
         <h1 className="text-lg font-bold text-slate-900">データベースを変更</h1>
-        {locked && <p className="bg-amber-50 px-3 py-2 text-sm text-slate-800">月の途中は設定を変えられません。月末の報告のあとで直せます。</p>}
 
         <Section title="エンジンのオプション" summary="MySQL" help="このゲームでは、エンジンは MySQL で固定です。">
           <p className="text-slate-700">MySQL</p>
@@ -114,6 +126,28 @@ export function Build({ customerId }: { customerId: string }) {
           </label>
           <p className="text-xs text-slate-500">バックアップ保持期間：{bp.backup ? '7日' : '—'}</p>
         </Section>
+
+        </>)}
+        {service === 's3' && (<>
+          <p className="text-xs text-cyan-700">Amazon S3 ＞ バケット ＞ 検査結果のPDF ＞ アクセス許可</p>
+          <h1 className="text-lg font-bold text-slate-900">バケットのアクセス許可を編集</h1>
+          <Section title="ブロックパブリックアクセス" summary={bp.s3Public ? 'オフ（公開）' : 'オン'} help={HELP_S3}>
+            <label className="flex items-start gap-2">
+              <input type="checkbox" checked={!bp.s3Public} disabled={locked} onChange={(e) => state.setSetting(customerId, 's3Public', !e.target.checked)} className="mt-1 h-4 w-4 accent-teal-600" />
+              <span className="text-slate-900">パブリックアクセスをすべてブロック</span>
+            </label>
+            <p className="text-xs text-slate-500">{bp.s3Public ? '現在：URLを知っていれば誰でもファイルを開けます' : '現在：非公開。本人には、アプリが期限つきの署名付きURLを発行します'}</p>
+          </Section>
+        </>)}
+        {service === 'iam' && (<>
+          <p className="text-xs text-cyan-700">IAM ＞ アプリ（EC2）から Amazon S3 へのアクセス</p>
+          <h1 className="text-lg font-bold text-slate-900">アプリに権限を渡す方法</h1>
+          <Section title="認証情報と権限" summary="" help={HELP_IAM}>
+            <Radio name="cred" checked={bp.credential === 'access-key'} disabled={locked} onChange={() => state.setCredential(customerId, 'access-key')}>IAM ユーザーのアクセスキーを、サーバーの設定ファイルに保存する</Radio>
+            <Radio name="cred" checked={bp.credential === 'role-full'} disabled={locked} onChange={() => state.setCredential(customerId, 'role-full')}>EC2 に IAM ロールを割り当てる（AmazonS3FullAccess）</Radio>
+            <Radio name="cred" checked={bp.credential === 'role-scoped'} disabled={locked} onChange={() => state.setCredential(customerId, 'role-scoped')}>EC2 に IAM ロールを割り当てる（検査結果のバケットへの読み書きだけを許可）</Radio>
+          </Section>
+        </>)}
 
         <div className="flex items-center justify-between bg-white px-3 py-2 text-sm">
           <span className="text-slate-500">推定月額（構成全体・ゲーム内の値）</span>

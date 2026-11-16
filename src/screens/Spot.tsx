@@ -77,6 +77,8 @@ export function SpotScreen({ spotId, practice }: { spotId: string; practice: boo
       <p className="text-center text-xs text-slate-500">
         月額 {yen(fixedCost(bp))}／予算 {yen(spot.plan.budget)}
         {bp.dbPublic && '・DBのパブリックアクセスあり'}{bp.dbSgOpen && '・0.0.0.0/0 を許可'}{!bp.backup && '・自動バックアップなし'}
+        {spot.files && (bp.s3Public ? '・バケット公開' : '・バケット非公開')}
+        {spot.files && { 'access-key': '・アクセスキーを保存', 'role-full': '・IAMロール（フルアクセス）', 'role-scoped': '・IAMロール（必要な分だけ）' }[bp.credential]}
       </p>
 
       <section className="space-y-2">

@@ -3,6 +3,8 @@ import { customerById, ruleById, simByCustomer } from '../content';
 import { GRADE_TEXT, PrimaryButton, Screen, Stamp, Voice, pct, yen } from '../components/ui';
 import { RuleSources } from '../components/RuleSources';
 import { go } from '../router';
+import { radarScores } from '../sim/radar';
+import { Radar } from '../components/Radar';
 import { SLOW_DAYS_ALLOWED } from '../sim/parts';
 import { BEST_BONUS, customerSave, planFor, runningResult, useSave } from '../store';
 
@@ -47,6 +49,8 @@ export function Report({ customerId }: { customerId: string }) {
           ))}
         </ul>
       </section>
+
+      {save.running && <Radar scores={radarScores(save.running, plan, sim.features.includes('files'))} priority={sim.priority} />}
 
       <section>
         <h2 className="mb-2 text-sm font-bold text-slate-700">今月の収支（{name}さん）</h2>

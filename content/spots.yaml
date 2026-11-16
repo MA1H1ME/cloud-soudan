@@ -127,3 +127,59 @@
     - { id: none, label: バックアップがあるので大丈夫と答える, patch: {} }
     - { id: close, label: パブリックアクセスを「なし」にし、接続元を web-sg だけに絞る, patch: { dbPublic: false, dbSgOpen: false } }
     - { id: replica, label: リードレプリカを追加する, patch: { slots: { data-c: rds-replica } } }
+- id: spot-school-prints
+  conceptId: s3-private-access
+  guest: 上田さん
+  business: 学習塾の教材配布サイト
+  voice: 有料の教材PDFを、申し込んだ生徒にだけ配りたいんです。今はURLを長くして、分かりにくくしてあります。
+  goal: 申し込んだ生徒以外がファイルを開けないこと
+  files: true
+  plan: { visitsPerDay: 300, budget: 30000, uptimeTarget: 0.98, events: [{ day: 11, type: bucket-probe, label: 教材のURLへの不審なアクセス }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false, s3Public: true, credential: role-scoped }
+  avoid: [s3-public-leak]
+  options:
+    - { id: longer, label: URLをもっと長く、推測しにくくする, patch: {} }
+    - { id: private, label: バケットを非公開にし、ログインした生徒に署名付きURLを発行する, patch: { s3Public: false } }
+    - { id: standby, label: データベースをマルチ AZ にする, patch: { slots: { data-c: rds-standby } } }
+- id: spot-realtor
+  conceptId: s3-private-access
+  guest: 松本さん
+  business: 不動産会社の契約書共有
+  voice: 契約書のPDFを、契約したお客さんに1週間だけ見せたいんです。バケットごと公開するしかないと聞いたのですが。
+  goal: 契約したお客さん以外がファイルを開けないこと
+  files: true
+  plan: { visitsPerDay: 200, budget: 30000, uptimeTarget: 0.98, events: [{ day: 19, type: bucket-probe, label: 契約書のURLへの不審なアクセス }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false, s3Public: true, credential: role-scoped }
+  avoid: [s3-public-leak]
+  options:
+    - { id: private, label: バケットは非公開のまま、期限つきの署名付きURLで渡す, patch: { s3Public: false } }
+    - { id: none, label: 1週間だけなので、公開のままにする, patch: {} }
+    - { id: backup, label: 自動バックアップの設定を見直す, patch: { backup: true } }
+- id: spot-print-shop
+  conceptId: ec2-iam-role
+  guest: 岡田さん
+  business: 印刷会社の入稿システム
+  voice: 来月、取引先のセキュリティ審査があります。サーバーからS3に入稿データを保存しているのですが、設定ファイルにキーを書いてあります。
+  goal: 審査で指摘を受けないこと
+  files: true
+  plan: { visitsPerDay: 300, budget: 30000, uptimeTarget: 0.98, events: [{ day: 18, type: audit, label: 取引先のセキュリティ審査 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false, s3Public: false, credential: access-key }
+  avoid: [cred-access-key, cred-role-broad]
+  options:
+    - { id: role-full, label: EC2 に IAM ロールを割り当て、S3 のフルアクセスを付ける, patch: { credential: role-full } }
+    - { id: role-scoped, label: EC2 に IAM ロールを割り当て、入稿用バケットへの必要な操作だけを許可する, patch: { credential: role-scoped } }
+    - { id: none, label: キーは社内の人しか見ないので、このままにする, patch: {} }
+- id: spot-survey
+  conceptId: ec2-iam-role
+  guest: 村上さん
+  business: アンケート集計サービス
+  voice: キーを置くのはやめて、IAMロールにしました。面倒なので権限は全部付けてあります。これで審査は通りますよね？
+  goal: 審査で指摘を受けないこと
+  files: true
+  plan: { visitsPerDay: 300, budget: 30000, uptimeTarget: 0.98, events: [{ day: 14, type: audit, label: 顧客企業のセキュリティ審査 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false, s3Public: false, credential: role-full }
+  avoid: [cred-access-key, cred-role-broad]
+  options:
+    - { id: none, label: ロールにしたので、このままで通ると答える, patch: {} }
+    - { id: key, label: 権限を絞ったアクセスキーを作り、サーバーに保存する, patch: { credential: access-key } }
+    - { id: role-scoped, label: ロールの権限を、集計用バケットへの必要な操作だけに絞る, patch: { credential: role-scoped } }

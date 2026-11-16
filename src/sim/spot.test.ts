@@ -32,5 +32,9 @@ describe('スポット案件', () => {
     expect(passing('spot-video-class')).toEqual(['alb']);
     expect(passing('spot-dental')).toEqual(['close']);
     expect(passing('spot-zakka')).toEqual(['close']);
+    expect(passing('spot-school-prints')).toEqual(['private']);
+    expect(passing('spot-realtor')).toEqual(['private']);
+    expect(passing('spot-print-shop')).toEqual(['role-scoped']);
+    expect(passing('spot-survey')).toEqual(['role-scoped']);
   });
 });
