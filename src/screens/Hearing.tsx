@@ -1,5 +1,5 @@
 // ① ヒアリング：用意した質問から選んで聞き、要件メモを埋める。
-import { customerById, simByCustomer } from '../content';
+import { nameFor, simFor } from '../jobs';
 import { StepBar } from '../components/StepBar';
 import { Senpai } from '../components/Senpai';
 import { Face, PrimaryButton, Screen } from '../components/ui';
@@ -8,12 +8,12 @@ import { customerSave, useSave } from '../store';
 
 export function Hearing({ customerId }: { customerId: string }) {
   const state = useSave();
-  const sim = simByCustomer.get(customerId);
+  const sim = simFor(customerId);
   const save = customerSave(state, customerId);
   const hearing = sim?.hearing;
   if (!sim || !save || !hearing) return <Screen title="ヒアリングはありません"><PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton></Screen>;
 
-  const name = customerById.get(customerId)?.name ?? customerId;
+  const name = nameFor(customerId);
   const left = hearing.maxQuestions - save.asked.length;
   const asked = save.asked.flatMap((id) => hearing.questions.filter((q) => q.id === id));
   const revealed = new Set(asked.flatMap((q) => (q.reveals ? [q.reveals] : [])));

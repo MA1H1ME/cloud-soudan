@@ -12,7 +12,8 @@
     "build:draft": "npm run content:draft && tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "node e2e/smoke.cjs"
   },
   "dependencies": {
     "react": "^19.3.1",

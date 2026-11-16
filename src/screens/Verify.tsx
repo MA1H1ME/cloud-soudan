@@ -1,5 +1,5 @@
 // ④ 検証：聞き出した要件ごとに、構成が合っているかを確かめる。
-import { customerById, simByCustomer } from '../content';
+import { nameFor, simFor } from '../jobs';
 import { StepBar } from '../components/StepBar';
 import { Senpai } from '../components/Senpai';
 import { PrimaryButton, Screen } from '../components/ui';
@@ -17,12 +17,12 @@ const STYLE = {
 
 export function Verify({ customerId }: { customerId: string }) {
   const state = useSave();
-  const sim = simByCustomer.get(customerId);
+  const sim = simFor(customerId);
   const save = customerSave(state, customerId);
   const plan = sim && save ? planFor(sim, save.month) : undefined;
   if (!sim?.hearing || !save || !plan) return <Screen title="検証はありません"><PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton></Screen>;
 
-  const name = customerById.get(customerId)?.name ?? customerId;
+  const name = nameFor(customerId);
   const checks = verify(sim.hearing, save.asked, save.blueprint, plan, sim.profitPerVisit);
   const passed = checks.filter((c) => c.status === 'pass').length;
   const clean = passed === checks.length;

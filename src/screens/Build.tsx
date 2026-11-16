@@ -1,7 +1,7 @@
 // ③ 構築：練習用コンソールで、部品ごとの設定を選ぶ。
 // 画面の構造と設定項目の名前は実際のコンソールに合わせるが、配色・アイコン・ロゴは自作。
 import { useState, type ReactNode } from 'react';
-import { customerById, simByCustomer } from '../content';
+import { nameFor, simFor } from '../jobs';
 import { StepBar } from '../components/StepBar';
 import { Senpai } from '../components/Senpai';
 import { yen } from '../components/ui';
@@ -49,7 +49,7 @@ function Radio({ name, checked, onChange, disabled, children }: { name: string; 
 
 export function Build({ customerId }: { customerId: string }) {
   const state = useSave();
-  const sim = simByCustomer.get(customerId);
+  const sim = simFor(customerId);
   const save = customerSave(state, customerId);
   const plan = sim && save ? planFor(sim, save.month) : undefined;
   if (!sim || !save || !plan) return null;
@@ -57,7 +57,7 @@ export function Build({ customerId }: { customerId: string }) {
   const bp = save.running ?? save.blueprint;
   const locked = Boolean(save.running);
   const inCase = save.phase !== 'operate';
-  const name = customerById.get(customerId)?.name ?? customerId;
+  const name = nameFor(customerId);
   const standby = bp.slots['data-c'] === 'rds-standby';
   const replica = bp.slots['data-c'] === 'rds-replica';
   const files = sim.features.includes('files');

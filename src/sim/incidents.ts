@@ -98,7 +98,7 @@ export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprin
       options: [
         { id: 'add', label: 'EC2 をもう1台起動する', good: false, effect: { extraCost: ASG_COST_PER_DAY * days },
           result: '振り分ける ALB がないので、2台目にはアクセスが届きません。料金だけかかりました。' },
-        { id: 'wait', label: '混雑が過ぎるのを待ち、来月 ALB を入れる設計に直す', good: true, effect: {},
+        { id: 'wait', label: '混雑が過ぎるのを待ち、振り分け（ALB）を入れる構成をお客さんに提案する', good: true, effect: {},
           result: '今の構成では打つ手がありません。振り分ける仕組みを設計に入れるのが根本の対策です。' },
       ],
     };
@@ -119,7 +119,7 @@ export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprin
   if (ev.type === 'bucket-probe' && bp.s3Public) {
     return {
       key, day, termId: 's3', defaultId: 'rename',
-      alert: `${ev.label}：検査結果のPDFのURLが、知らない人に共有されています。`,
+      alert: `${ev.label}：本人にだけ渡すはずのファイルのURLが、知らない人に共有されています。`,
       question: 'まず何をする？',
       options: [
         { id: 'rename', label: 'ファイル名を推測されにくい名前に変える', good: false, effect: { penaltyDays: 5 },

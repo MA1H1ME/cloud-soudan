@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import type { Rule, SimCustomer } from '../sim/schema';
 import type { Spot } from '../sim/spot';
+import type { JobTemplates } from '../sim/generator';
 
 export const PILLARS = ['security', 'reliability', 'performance', 'cost', 'operations'] as const;
 export const PILLAR_LABELS: Record<Pillar, string> = {
@@ -157,6 +158,7 @@ export type GlossaryTerm = z.infer<typeof glossarySchema>;
 
 export interface ContentBundle {
   glossary: GlossaryTerm[];
+  jobs: JobTemplates;
   scenarios: Scenario[];
   concepts: Concept[];
   customers: Customer[];

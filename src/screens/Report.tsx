@@ -1,5 +1,6 @@
 // 月次レポート：目標の達成度、収支、発動したルールの解説。学習の本体。
-import { customerById, ruleById, simByCustomer } from '../content';
+import { ruleById } from '../content';
+import { nameFor, simFor } from '../jobs';
 import { GRADE_TEXT, PrimaryButton, Screen, Stamp, Voice, pct, yen } from '../components/ui';
 import { RuleSources } from '../components/RuleSources';
 import { Senpai } from '../components/Senpai';
@@ -12,13 +13,13 @@ import { BEST_BONUS, customerSave, planFor, runningResult, useSave } from '../st
 
 export function Report({ customerId }: { customerId: string }) {
   const state = useSave();
-  const sim = simByCustomer.get(customerId);
+  const sim = simFor(customerId);
   const save = customerSave(state, customerId);
   const plan = sim && save ? planFor(sim, save.month) : undefined;
   const result = sim && save ? runningResult(sim, save) : undefined;
   if (!sim || !save || !plan || !result) return <Screen title="レポートがありません"><PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton></Screen>;
 
-  const name = customerById.get(customerId)?.name ?? customerId;
+  const name = nameFor(customerId);
   const kpis = [
     { ok: result.kpi.budget, label: '予算内', detail: `${yen(result.cost)}／${yen(plan.budget)}` },
     { ok: result.kpi.uptime, label: '稼働率', detail: `${pct(result.uptime, 2)}／目標 ${pct(plan.uptimeTarget)}` },
@@ -31,7 +32,7 @@ export function Report({ customerId }: { customerId: string }) {
   };
 
   return (
-    <Screen title={`月次レポート：${save.month}か月目`} footer={<PrimaryButton onClick={next}>翌月へ進む{result.grade !== 'fail' ? `（契約料 +${yen(sim.contractFee)}${result.grade === 'best' ? `、ボーナス +${yen(BEST_BONUS)}` : ''}）` : '（契約料なし）'}</PrimaryButton>}>
+    <Screen title={`月次レポート：${save.month}か月目`} footer={<PrimaryButton onClick={next}>{planFor(sim, save.month + 1) ? '翌月へ進む' : '契約を完了する'}{result.grade !== 'fail' ? `（契約料 +${yen(sim.contractFee)}${result.grade === 'best' ? `、ボーナス +${yen(BEST_BONUS)}` : ''}）` : '（契約料なし）'}</PrimaryButton>}>
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <Voice name={name} mood={result.grade === 'best' ? 'happy' : result.grade === 'good' ? 'normal' : 'troubled'}>{sim.comments[result.grade]}</Voice>

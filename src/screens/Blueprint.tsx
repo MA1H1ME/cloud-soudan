@@ -1,6 +1,7 @@
 // 設計図の編集。マスをタップして部品を置き、見積もりと処理能力を見ながら「今月を回す」。
 import { useState } from 'react';
-import { customerById, ruleById, simByCustomer } from '../content';
+import { ruleById } from '../content';
+import { nameFor, simFor } from '../jobs';
 import { BlueprintView } from '../components/BlueprintView';
 import { PrimaryButton, Screen, pct, yen } from '../components/ui';
 import { StepBar } from '../components/StepBar';
@@ -26,14 +27,14 @@ const PART_TERM: Record<string, string> = { alb: 'alb', ec2: 'ec2', rds: 'rds', 
 export function BlueprintScreen({ customerId }: { customerId: string }) {
   const state = useSave();
   const [selected, setSelected] = useState<Slot | null>(null);
-  const sim = simByCustomer.get(customerId);
+  const sim = simFor(customerId);
   const save = customerSave(state, customerId);
   const plan = sim && save ? planFor(sim, save.month) : undefined;
   if (!sim || !save || !plan) return <Screen title="設計図が見つかりません"><PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton></Screen>;
 
   const bp = save.blueprint;
   const inCase = save.phase !== 'operate';
-  const name = customerById.get(customerId)?.name ?? customerId;
+  const name = nameFor(customerId);
   const cost = fixedCost(bp, plan.month);
   const isStatic = bp.site !== 'none';
   const cap = baseCapacity(bp);

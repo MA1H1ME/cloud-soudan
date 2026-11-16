@@ -10,6 +10,7 @@ import { Verify } from './screens/Verify';
 import { SpotScreen } from './screens/Spot';
 import { Record } from './screens/Record';
 import { Glossary } from './screens/Glossary';
+import { Mail } from './screens/Mail';
 import { TermSheet } from './components/Term';
 
 export function App() {
@@ -34,6 +35,8 @@ function Routes() {
       return <Record />;
     case 'glossary':
       return <Glossary />;
+    case 'mail':
+      return <Mail />;
     case 'hearing':
       return <Hearing customerId={route.customerId} />;
     case 'build':

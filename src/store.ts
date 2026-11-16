@@ -2,7 +2,8 @@
 // 結果は保存せず、「その月に使った構成」だけを残して毎回計算し直す（計算は決定的）。
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { conceptById, content, ruleById, simByCustomer } from './content';
+import { conceptById, content, ruleById } from './content';
+import { MAIL_DAYS, mailsForDay, simFor } from './jobs';
 import { addDays, enqueue, gameDate, INTERVAL_DAYS, onReviewAnswered, pickDueReviews, type ReviewItem } from './engine/review';
 import { DAYS, runMonth, type Grade, type MonthResult } from './sim/engine';
 import { LOCKED_SLOTS } from './sim/parts';
@@ -23,8 +24,10 @@ export interface CustomerSave {
   blueprint: Blueprint;
   /** 月を始めたときに確定した構成。月の途中は変えられない */
   running: Blueprint | null;
-  /** 月の中の経過日数（0〜30） */
-  day: number;
+  /** 今の月を始めた日（会社の暦）。月の中の経過日数は dayOf で求める */
+  startedOn?: number;
+  /** 旧セーブとの互換用（使わない） */
+  day?: number;
   history: { month: number; blueprint: Blueprint; responses?: Responses }[];
   /** 今月の障害対応で選んだもの（出来事の番号 → 選択肢） */
   responses?: Responses;
@@ -38,8 +41,25 @@ export type Phase = 'hearing' | 'design' | 'build' | 'verify' | 'operate';
 
 export interface Company { name: string; cash: number }
 
+export const RACK_PRICE = 50000;
+export const MAX_RACKS = 6;
+export const START_RACKS = 3;
+/** 案件メールが届き始める段階（柏木さんの2か月目から） */
+export const MAIL_STAGE = 2;
+
 interface SaveState {
   company: Company | null;
+  /** 会社の暦（何日目か） */
+  clock: number;
+  racks: number;
+  /** 届いた案件メール */
+  mailLog: { id: string; day: number }[];
+  /** メールへの返事 */
+  mailStatus: Record<string, 'accepted' | 'declined'>;
+  setClock: (day: number) => void;
+  acceptMail: (id: string) => boolean;
+  declineMail: (id: string) => void;
+  buyRack: () => void;
   customers: Record<string, CustomerSave>;
   /** 依頼を受けたお客さん */
   accepted: string[];
@@ -65,17 +85,33 @@ interface SaveState {
   ask: (customerId: string, questionId: string) => void;
   setPhase: (customerId: string, phase: Phase) => void;
   startMonth: (customerId: string) => void;
-  setDay: (customerId: string, day: number) => void;
   respond: (customerId: string, key: string, optionId: string) => void;
   next: (customerId: string, grade: Grade) => void;
 }
 
 function initial(sim: SimCustomer): CustomerSave {
-  return { month: 1, blueprint: sim.start, running: null, day: 0, history: [], phase: sim.hearing ? 'hearing' : 'operate', asked: [] };
+  return { month: 1, blueprint: sim.start, running: null, history: [], phase: sim.hearing ? 'hearing' : 'operate', asked: [] };
+}
+
+/** 今の月の経過日数（0〜30） */
+export function dayOf(save: CustomerSave | undefined, clock: number): number {
+  if (!save?.running || save.startedOn === undefined) return 0;
+  return Math.max(0, Math.min(DAYS, clock - save.startedOn));
+}
+
+/** 契約の月をすべて終えたか */
+export function finished(id: string, save: CustomerSave | undefined): boolean {
+  const sim = simFor(id);
+  return !sim || !save || !sim.months.some((m) => m.month === save.month);
+}
+
+/** ラックを使っているお客さん（受けて、まだ終わっていない） */
+export function onRacks(state: Pick<SaveState, 'customers' | 'accepted'>): string[] {
+  return state.accepted.filter((id) => !finished(id, customerSave(state, id)));
 }
 
 export function customerSave(state: Pick<SaveState, 'customers'>, customerId: string): CustomerSave | undefined {
-  const sim = simByCustomer.get(customerId);
+  const sim = simFor(customerId);
   if (!sim) return undefined;
   const saved = state.customers[customerId];
   if (!saved) return initial(sim);
@@ -92,10 +128,39 @@ export const useSave = create<SaveState>()(
       };
       return {
         company: null,
+        clock: 1,
+        racks: START_RACKS,
+        mailLog: [],
+        mailStatus: {},
+        setClock: (day) => {
+          const st = get();
+          if (day <= st.clock) return;
+          const stage = unlockStage(st);
+          const fresh = stage >= MAIL_STAGE
+            ? Array.from({ length: day - st.clock }, (_, i) => st.clock + 1 + i).flatMap((d) => mailsForDay(d, Math.min(3, stage)).map((id) => ({ id, day: d })))
+            : [];
+          // 古いメールは記録から落とす（受けたものは残す）
+          const mailLog = [...st.mailLog, ...fresh].filter((m) => day - m.day < 30 || st.mailStatus[m.id] === 'accepted');
+          set({ clock: day, mailLog });
+        },
+        acceptMail: (id) => {
+          const st = get();
+          if (onRacks(st).length >= st.racks || !simFor(id)) return false;
+          set({ accepted: [...new Set([...st.accepted, id])], active: id, mailStatus: { ...st.mailStatus, [id]: 'accepted' } });
+          return true;
+        },
+        declineMail: (id) => set({ mailStatus: { ...get().mailStatus, [id]: 'declined' } }),
+        buyRack: () => {
+          const st = get();
+          if (!st.company || st.racks >= MAX_RACKS || st.company.cash < RACK_PRICE) return;
+          set({ racks: st.racks + 1, company: { ...st.company, cash: st.company.cash - RACK_PRICE } });
+        },
         customers: {},
         accepted: [],
         active: null,
-        accept: (customerId) => set({ accepted: [...new Set([...get().accepted, customerId])], active: customerId }),
+        accept: (customerId) => {
+          if (onRacks(get()).length < get().racks) set({ accepted: [...new Set([...get().accepted, customerId])], active: customerId });
+        },
         setActive: (customerId) => get().accepted.includes(customerId) && set({ active: customerId }),
         setSite: (customerId, value) => update(customerId, (c) => (c.running ? c : { ...c, blueprint: { ...c.blueprint, site: value } })),
         setCredential: (customerId, value) => update(customerId, (c) => (c.running ? c : { ...c, blueprint: { ...c.blueprint, credential: value } })),
@@ -104,7 +169,7 @@ export const useSave = create<SaveState>()(
         tips: [],
         dismissTip: (id) => set({ tips: [...new Set([...get().tips, id])] }),
         resetTips: () => set({ tips: [] }),
-        newGame: (name) => set({ company: { name, cash: START_CASH }, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
+        newGame: (name) => set({ company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
         answerSpot: (spotId, passed, firedRuleIds, practice) => {
           const spot = content.spots.find((x) => x.id === spotId);
           const st = get();
@@ -132,16 +197,15 @@ export const useSave = create<SaveState>()(
           update(customerId, (c) => (c.running ? c : { ...c, blueprint: { ...c.blueprint, [key]: value } })),
         ask: (customerId, questionId) =>
           update(customerId, (c) => {
-            const max = simByCustomer.get(customerId)?.hearing?.maxQuestions ?? 0;
+            const max = simFor(customerId)?.hearing?.maxQuestions ?? 0;
             return c.asked.includes(questionId) || c.asked.length >= max ? c : { ...c, asked: [...c.asked, questionId] };
           }),
         setPhase: (customerId, phase) => update(customerId, (c) => ({ ...c, phase })),
-        startMonth: (customerId) => update(customerId, (c) => (c.running ? c : { ...c, running: c.blueprint, day: 0, responses: {} })),
+        startMonth: (customerId) => update(customerId, (c) => (c.running ? c : { ...c, running: c.blueprint, startedOn: get().clock, responses: {} })),
         respond: (customerId, key, optionId) =>
           update(customerId, (c) => (c.running && !(key in (c.responses ?? {})) ? { ...c, responses: { ...c.responses, [key]: optionId } } : c)),
-        setDay: (customerId, day) => update(customerId, (c) => ({ ...c, day: Math.min(DAYS, day) })),
         next: (customerId, grade) => {
-          const sim = simByCustomer.get(customerId);
+          const sim = simFor(customerId);
           const company = get().company;
           if (sim && company && grade !== 'fail') {
             set({ company: { ...company, cash: company.cash + sim.contractFee + (grade === 'best' ? BEST_BONUS : 0) } });
@@ -166,17 +230,24 @@ export const useSave = create<SaveState>()(
           }
           update(customerId, (c) =>
             c.running
-              ? { ...c, month: c.month + 1, running: null, day: 0, responses: {}, history: [...c.history, { month: c.month, blueprint: c.running, responses: c.responses ?? {} }] }
+              ? { ...c, month: c.month + 1, running: null, startedOn: undefined, responses: {}, history: [...c.history, { month: c.month, blueprint: c.running, responses: c.responses ?? {} }] }
               : c,
           );
+          // 契約が終わったら、担当をほかのお客さんに移す
+          if (finished(customerId, customerSave(get(), customerId)) && get().active === customerId) {
+            set({ active: onRacks(get())[0] ?? null });
+          }
         },
       };
     },
-    { name: 'cloud-soudan-company-2', version: 3,
-      migrate: (old) => {
-        const o = old as { customers?: Record<string, unknown> };
+    { name: 'cloud-soudan-company-2', version: 4,
+      migrate: (old, version) => {
+        const o = old as { customers?: Record<string, CustomerSave> };
         const had = Object.keys(o.customers ?? {});
-        return { review: {}, seenRules: [], accepted: had, active: had[0] ?? null, ...o };
+        const base = version < 3 ? { review: {}, seenRules: [], accepted: had, active: had[0] ?? null, ...o } : o;
+        // v4：月の経過日数を、会社の暦（clock）と月を始めた日に置き換えた
+        const customers = Object.fromEntries(Object.entries(o.customers ?? {}).map(([id, c]) => [id, { ...c, startedOn: c.running ? 1 - (c.day ?? 0) : undefined }]));
+        return { clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, ...base, customers };
       }, },
   ),
 );
@@ -209,7 +280,15 @@ export function dueSpots(state: Pick<SaveState, 'review'>): string[] {
   });
 }
 
-/** まだ受けていない依頼（条件を満たして届いているもの） */
+/** 受信箱の案件メール（期限内で、まだ返事をしていないもの。新しい順） */
+export function inbox(state: Pick<SaveState, 'clock' | 'mailLog' | 'mailStatus'>): { id: string; day: number; left: number }[] {
+  return state.mailLog
+    .filter((m) => !state.mailStatus[m.id] && state.clock - m.day < MAIL_DAYS && simFor(m.id))
+    .map((m) => ({ ...m, left: MAIL_DAYS - (state.clock - m.day) }))
+    .reverse();
+}
+
+/** まだ受けていない本編の依頼（条件を満たして届いているもの） */
 export function pendingRequests(state: Pick<SaveState, 'customers' | 'accepted'>): SimCustomer[] {
   return content.sim.filter((sim) => {
     if (state.accepted.includes(sim.customerId)) return false;
