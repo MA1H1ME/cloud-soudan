@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
-import { RULE_IDS, fixedCost, runMonth, webServers } from './engine';
+import { RULE_IDS, fixedCost, monthIncidents, runMonth, webServers } from './engine';
 import { ruleSchema, simCustomerSchema, type Blueprint } from './schema';
 import { z } from 'zod';
 
@@ -161,5 +161,49 @@ describe('灯さん：コスト最優先の静的サイト', () => {
     expect(runA(3, cf).kpi.budget).toBe(false);
     expect(ids(runA(3, cf))).toContain('s3-no-lifecycle');
     expect(runA(3, { ...cf, lifecycle: true }).grade).toBe('best');
+  });
+});
+
+describe('障害対応', () => {
+  const secure = { dbPublic: false, dbSgOpen: false, backup: true };
+  const key = (n: number, b: Blueprint, type: string) => monthIncidents(month(n), b).find((x) => month(n).events.slice().sort((p, q) => p.day - q.day)[Number(x.key)]!.type === type)!.key;
+
+  it('選ぶ前は、対応による補正をかけない', () => {
+    const b = bp({}, secure);
+    expect(runMonth(k.profitPerVisit, month(1), b, {}).uptime).toBe(run(1, b).uptime);
+  });
+  it('バックアップからの復元：新しいインスタンスを作れば半日、上書きを待つと1日止まる', () => {
+    const b = bp({}, secure);
+    const kk = key(1, b, 'db-failure');
+    const good = runMonth(k.profitPerVisit, month(1), b, { [kk]: 'restore' });
+    const bad = runMonth(k.profitPerVisit, month(1), b, { [kk]: 'overwrite' });
+    expect(good.uptime).toBeGreaterThan(bad.uptime);
+    expect(good.kpi.uptime).toBe(true);
+    expect(bad.kpi.uptime).toBe(false);
+  });
+  it('マルチAZなら判断は要らない', () => {
+    const b = bp({ 'data-c': 'rds-standby' }, secure);
+    expect(monthIncidents(month(1), b).some((x) => x.key === key(1, bp({}, secure), 'db-failure'))).toBe(false);
+  });
+  it('ALB があれば、手で1台足すと混雑がやわらぐ', () => {
+    const b = bp({ public: 'alb' }, secure);
+    const kk = key(1, b, 'spike');
+    const added = runMonth(k.profitPerVisit, month(1), b, { [kk]: 'add' });
+    const waited = runMonth(k.profitPerVisit, month(1), b, { [kk]: 'wait' });
+    expect(added.slowDays).toBeLessThan(waited.slowDays);
+    expect(added.cost).toBeGreaterThan(waited.cost);
+  });
+  it('ALB がなければ、2台目を起動しても混雑は変わらない', () => {
+    const b = bp({}, secure);
+    const kk = key(1, b, 'spike');
+    const added = runMonth(k.profitPerVisit, month(1), b, { [kk]: 'add' });
+    expect(added.slowDays).toBe(runMonth(k.profitPerVisit, month(1), b, { [kk]: 'wait' }).slowDays);
+  });
+  it('外から届くDB：接続元を絞れば損害が小さくなる', () => {
+    const b = bp({}, { backup: true, dbPublic: true, dbSgOpen: true });
+    const kk = key(1, b, 'probe');
+    const sg = runMonth(k.profitPerVisit, month(1), b, { [kk]: 'sg' });
+    const pw = runMonth(k.profitPerVisit, month(1), b, { [kk]: 'password' });
+    expect(sg.net).toBeGreaterThan(pw.net);
   });
 });

@@ -6,6 +6,7 @@ import { conceptById, content, ruleById, simByCustomer } from './content';
 import { addDays, enqueue, gameDate, INTERVAL_DAYS, onReviewAnswered, pickDueReviews, type ReviewItem } from './engine/review';
 import { DAYS, runMonth, type Grade, type MonthResult } from './sim/engine';
 import { LOCKED_SLOTS } from './sim/parts';
+import type { Responses } from './sim/incidents';
 import { UNLOCK_MONTH } from './guide';
 import type { Blueprint, MonthPlan, PartType, SimCustomer, Slot } from './sim/schema';
 
@@ -24,7 +25,9 @@ export interface CustomerSave {
   running: Blueprint | null;
   /** 月の中の経過日数（0〜30） */
   day: number;
-  history: { month: number; blueprint: Blueprint }[];
+  history: { month: number; blueprint: Blueprint; responses?: Responses }[];
+  /** 今月の障害対応で選んだもの（出来事の番号 → 選択肢） */
+  responses?: Responses;
   /** 最初の案件の進み具合。運用に入ったら 'operate' のまま */
   phase: Phase;
   /** ヒアリングで聞いた質問のID */
@@ -63,6 +66,7 @@ interface SaveState {
   setPhase: (customerId: string, phase: Phase) => void;
   startMonth: (customerId: string) => void;
   setDay: (customerId: string, day: number) => void;
+  respond: (customerId: string, key: string, optionId: string) => void;
   next: (customerId: string, grade: Grade) => void;
 }
 
@@ -132,7 +136,9 @@ export const useSave = create<SaveState>()(
             return c.asked.includes(questionId) || c.asked.length >= max ? c : { ...c, asked: [...c.asked, questionId] };
           }),
         setPhase: (customerId, phase) => update(customerId, (c) => ({ ...c, phase })),
-        startMonth: (customerId) => update(customerId, (c) => (c.running ? c : { ...c, running: c.blueprint, day: 0 })),
+        startMonth: (customerId) => update(customerId, (c) => (c.running ? c : { ...c, running: c.blueprint, day: 0, responses: {} })),
+        respond: (customerId, key, optionId) =>
+          update(customerId, (c) => (c.running && !(key in (c.responses ?? {})) ? { ...c, responses: { ...c.responses, [key]: optionId } } : c)),
         setDay: (customerId, day) => update(customerId, (c) => ({ ...c, day: Math.min(DAYS, day) })),
         next: (customerId, grade) => {
           const sim = simByCustomer.get(customerId);
@@ -160,7 +166,7 @@ export const useSave = create<SaveState>()(
           }
           update(customerId, (c) =>
             c.running
-              ? { ...c, month: c.month + 1, running: null, day: 0, history: [...c.history, { month: c.month, blueprint: c.running }] }
+              ? { ...c, month: c.month + 1, running: null, day: 0, responses: {}, history: [...c.history, { month: c.month, blueprint: c.running, responses: c.responses ?? {} }] }
               : c,
           );
         },
@@ -182,14 +188,14 @@ export function planFor(sim: SimCustomer, month: number): MonthPlan | undefined 
 /** 進行中の月（構成を確定した後）の結果 */
 export function runningResult(sim: SimCustomer, save: CustomerSave): MonthResult | undefined {
   const plan = planFor(sim, save.month);
-  return plan && save.running ? runMonth(sim.profitPerVisit, plan, save.running) : undefined;
+  return plan && save.running ? runMonth(sim.profitPerVisit, plan, save.running, save.responses ?? {}) : undefined;
 }
 
 /** 過去の月の結果（古い順） */
 export function pastResults(sim: SimCustomer, save: CustomerSave): { month: number; result: MonthResult }[] {
   return save.history.flatMap((h) => {
     const plan = planFor(sim, h.month);
-    return plan ? [{ month: h.month, result: runMonth(sim.profitPerVisit, plan, h.blueprint) }] : [];
+    return plan ? [{ month: h.month, result: runMonth(sim.profitPerVisit, plan, h.blueprint, h.responses ?? {}) }] : [];
   });
 }
 

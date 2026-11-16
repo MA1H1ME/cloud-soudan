@@ -7,7 +7,8 @@ import { Senpai } from '../components/Senpai';
 import { yen } from '../components/ui';
 import { go } from '../router';
 import { fixedCost } from '../sim/engine';
-import { customerSave, planFor, useSave } from '../store';
+import { customerSave, partUnlocked, planFor, useSave } from '../store';
+import { UNLOCK_MONTH } from '../guide';
 
 // 「情報」の説明文。content/rules.yaml と同じ公式ドキュメントと照合済み（2026-11-16）。
 const HELP_S3 = 'Amazon S3 のバケットとオブジェクトは、デフォルトでは公開されません。ブロックパブリックアクセスは、ポリシーやアクセス許可より優先して公開を制限します。特定の人に渡すときは、署名付きURLで期限つきのアクセスを許可できます。';
@@ -100,7 +101,10 @@ export function Build({ customerId }: { customerId: string }) {
         <Section title="可用性と耐久性" summary={standby ? 'マルチ AZ' : 'シングル AZ'} help={HELP.az}>
           <p className="text-xs text-slate-500">デプロイメントオプション</p>
           <Radio name="az" checked={!standby} disabled={locked} onChange={() => state.setSlot(customerId, 'data-c', null)}>シングル AZ DB インスタンス</Radio>
-          <Radio name="az" checked={standby} disabled={locked} onChange={() => state.setSlot(customerId, 'data-c', 'rds-standby')}>マルチ AZ DB インスタンス（スタンバイあり）</Radio>
+          <Radio name="az" checked={standby} disabled={locked || !partUnlocked(state, 'rds-standby')} onChange={() => state.setSlot(customerId, 'data-c', 'rds-standby')}>
+            {partUnlocked(state, 'rds-standby') ? '' : '🔒 '}マルチ AZ DB インスタンス（スタンバイあり）
+            {!partUnlocked(state, 'rds-standby') && <span className="block text-xs text-slate-500">柏木さんの{UNLOCK_MONTH['rds-standby']}か月目から使えます</span>}
+          </Radio>
           {replica && <p className="text-xs text-slate-500">設計図でリードレプリカを置いています。ここを選び直すと、レプリカは外れます。</p>}
         </Section>
 

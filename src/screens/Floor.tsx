@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { content, customerById, ruleById, simByCustomer } from '../content';
 import { go } from '../router';
-import { DAYS, type MonthResult } from '../sim/engine';
+import { DAYS, monthIncidents, type MonthResult } from '../sim/engine';
+import type { Incident, IncidentOption } from '../sim/incidents';
+import { Term } from '../components/Term';
 import type { Blueprint, PartType } from '../sim/schema';
 import { ticketsFrom } from '../sim/tickets';
 import { customerSave, dueSpots, pendingRequests, pastResults, planFor, runningResult, SPOT_REWARD, useSave } from '../store';
@@ -55,21 +57,32 @@ export function Floor() {
   const save = customerSave(state, MAIN);
   const [speed, setSpeed] = useState(0);
   const [menu, setMenu] = useState(false);
+  const [outcome, setOutcome] = useState<{ incident: Incident; option: IncidentOption } | null>(null);
   const local = useRef(save?.day ?? 0);
 
   const result = sim && save ? runningResult(sim, save) : undefined;
   const plan = sim && save ? planFor(sim, save.month) : undefined;
   const day = save?.day ?? 0;
+  const responses = save?.responses ?? {};
+  const incidents = plan && save?.running ? monthIncidents(plan, save.running) : [];
+  const pending = incidents.find((x) => !(x.key in responses));
+  const blocking = pending && day >= pending.day ? pending : undefined;
+  const stopAt = pending?.day ?? DAYS;
 
   useEffect(() => {
     if (!result || speed === 0 || !save) return;
     local.current = save.day;
     let frame = 0, prev = performance.now();
     const tick = (now: number) => {
-      local.current = Math.min(DAYS, local.current + ((now - prev) / 1000 / SECONDS_PER_DAY) * speed);
+      local.current = Math.min(stopAt, local.current + ((now - prev) / 1000 / SECONDS_PER_DAY) * speed);
       prev = now;
       const whole = Math.floor(local.current);
       if (whole !== useSave.getState().customers[MAIN]?.day) state.setDay(MAIN, whole);
+      if (local.current >= stopAt && stopAt < DAYS) {
+        // 判断が要る出来事の日。時間を止めて対応を選ばせる
+        setSpeed(0);
+        return;
+      }
       if (local.current >= DAYS) {
         setSpeed(0);
         setTimeout(() => go({ name: 'report', customerId: MAIN }), 600);
@@ -80,7 +93,7 @@ export function Floor() {
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speed, Boolean(result)]);
+  }, [speed, Boolean(result), stopAt]);
 
   useEffect(() => {
     if (!company) go({ name: 'title' });
@@ -174,6 +187,34 @@ export function Floor() {
         {menuButton}
       </header>
       {menuSheet}
+      {(blocking || outcome) && (
+        <div className="fixed inset-0 z-30 flex items-end justify-center bg-slate-900/60">
+          <section role="dialog" aria-modal="true" aria-label="障害対応" className="sheet-in w-full max-w-md space-y-3 border-t-4 border-red-600 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 text-sm text-slate-900">
+            {outcome ? (
+              <>
+                <p className={`text-base font-bold ${outcome.option.good ? 'text-emerald-700' : 'text-red-700'}`}>{outcome.option.good ? '◎ 良い対応' : '× まずい対応'}</p>
+                <p className="leading-relaxed">{outcome.option.result}</p>
+                <p className="text-xs">関係する用語：<Term id={outcome.incident.termId} /></p>
+                <button type="button" onClick={() => { setOutcome(null); setSpeed(1); }} className="w-full py-3 font-bold text-white" style={{ background: '#c2410c' }}>運用を続ける</button>
+              </>
+            ) : blocking && (
+              <>
+                <p className="text-xs font-bold text-red-700">🚨 {blocking.day}日目　障害対応</p>
+                <p className="font-bold leading-relaxed">{blocking.alert}</p>
+                <p className="text-slate-700">{blocking.question}</p>
+                <div className="space-y-2">
+                  {blocking.options.map((o) => (
+                    <button key={o.id} type="button" onClick={() => { state.respond(MAIN, blocking.key, o.id); setOutcome({ incident: blocking, option: o }); }}
+                      className="w-full border-2 border-slate-300 px-3 py-2 text-left active:bg-slate-100">
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      )}
       <p className="truncate px-3 py-1 text-[11px] text-slate-300" style={{ background: '#1b2333' }}>{company.name}</p>
 
       <div className="relative">
@@ -240,7 +281,7 @@ export function Floor() {
           <text x="280" y="290" textAnchor="end" fontSize="9" fill={PX.smoke} fontFamily={MONO}>サーバールーム</text>
         </svg>
 
-        {latest && (
+        {latest && !blocking && (
           <div className={`absolute left-3 right-3 top-2 border-2 px-3 py-2 text-xs shadow ${alarm ? 'border-red-700 bg-white' : 'border-slate-800 bg-white'}`} aria-live="polite">
             <p className="font-bold text-slate-900">{latest.day}日目：{latest.label}</p>
             {recent.filter((f) => f.day === latest.day).map((f) => <p key={f.ruleId} className="text-slate-800">{ruleById.get(f.ruleId)?.headline}</p>)}
@@ -298,7 +339,7 @@ inCase ? (
               )
             ) : (
               ([[0, '⏸ 停止'], [1, '▶ ×1'], [4, '▶▶ ×4']] as const).map(([s, label]) => (
-                <button key={s} type="button" aria-pressed={speed === s} onClick={() => setSpeed(s)} disabled={day >= DAYS}
+                <button key={s} type="button" aria-pressed={speed === s} onClick={() => setSpeed(s)} disabled={day >= DAYS || Boolean(blocking)}
                   className={`flex-1 py-2 text-sm ${speed === s ? 'bg-yellow-300 font-bold text-slate-900' : 'bg-slate-700 text-white'}`}>
                   {label}
                 </button>

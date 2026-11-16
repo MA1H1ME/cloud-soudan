@@ -3,6 +3,7 @@ import { customerById, ruleById, simByCustomer } from '../content';
 import { GRADE_TEXT, PrimaryButton, Screen, Stamp, Voice, pct, yen } from '../components/ui';
 import { RuleSources } from '../components/RuleSources';
 import { Senpai } from '../components/Senpai';
+import { Term } from '../components/Term';
 import { go } from '../router';
 import { radarScores } from '../sim/radar';
 import { Radar } from '../components/Radar';
@@ -51,6 +52,23 @@ export function Report({ customerId }: { customerId: string }) {
           ))}
         </ul>
       </section>
+
+      {result.incidents.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-sm font-bold text-slate-700">あなたの障害対応</h2>
+          <ul className="space-y-2">
+            {result.incidents.map(({ incident, option }) => (
+              <li key={incident.key} className={`border px-3 py-2 text-sm ${option.good ? 'border-emerald-300' : 'border-red-300'}`}>
+                <p className="text-[11px] text-slate-500">{incident.day}日目</p>
+                <p className="font-bold text-slate-900"><span className={option.good ? 'text-emerald-700' : 'text-red-700'}>{option.good ? '◎' : '×'}</span> {option.label}</p>
+                <p className="mt-1 text-slate-800">{option.result}</p>
+                {!option.good && <p className="mt-1 text-xs text-slate-600">良い対応：{incident.options.find((o) => o.good)?.label}</p>}
+                <p className="mt-1 text-xs">関係する用語：<Term id={incident.termId} /></p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {save.running && <Radar scores={radarScores(save.running, plan, sim.features.includes('files'))} priority={sim.priority} />}
 
