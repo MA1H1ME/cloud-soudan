@@ -22,6 +22,7 @@ import {
 import { ruleSchema, simCustomerSchema, type SimCustomer } from '../src/sim/schema';
 import { RULE_IDS } from '../src/sim/engine';
 import { judgeSpot, spotSchema } from '../src/sim/spot';
+import { jobTemplatesSchema } from '../src/sim/generator';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const contentDir = join(root, 'content');
@@ -194,7 +195,9 @@ export function validate(dir: string, allowDraft: boolean): Report {
   dup('glossary', glossary.map((g) => g.id));
   if (!allowDraft) glossary = glossary.filter((g) => g.review.status === 'verified');
 
-  return { errors, warnings, bundle: { scenarios: selected, concepts, customers, cards, rules, sim, spots, glossary } };
+  const jobs = load(join(dir, 'jobs.yaml'), jobTemplatesSchema, errors);
+
+  return { errors, warnings, bundle: { scenarios: selected, concepts, customers, cards, rules, sim, spots, glossary, jobs: jobs! } };
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

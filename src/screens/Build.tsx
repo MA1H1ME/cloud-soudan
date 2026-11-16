@@ -1,13 +1,14 @@
 // ③ 構築：練習用コンソールで、部品ごとの設定を選ぶ。
 // 画面の構造と設定項目の名前は実際のコンソールに合わせるが、配色・アイコン・ロゴは自作。
 import { useState, type ReactNode } from 'react';
-import { customerById, simByCustomer } from '../content';
+import { nameFor, simFor } from '../jobs';
 import { StepBar } from '../components/StepBar';
 import { Senpai } from '../components/Senpai';
 import { yen } from '../components/ui';
 import { go } from '../router';
 import { fixedCost } from '../sim/engine';
-import { customerSave, planFor, useSave } from '../store';
+import { customerSave, partUnlocked, planFor, useSave } from '../store';
+import { UNLOCK_MONTH } from '../guide';
 
 // 「情報」の説明文。content/rules.yaml と同じ公式ドキュメントと照合済み（2026-11-16）。
 const HELP_S3 = 'Amazon S3 のバケットとオブジェクトは、デフォルトでは公開されません。ブロックパブリックアクセスは、ポリシーやアクセス許可より優先して公開を制限します。特定の人に渡すときは、署名付きURLで期限つきのアクセスを許可できます。';
@@ -48,7 +49,7 @@ function Radio({ name, checked, onChange, disabled, children }: { name: string; 
 
 export function Build({ customerId }: { customerId: string }) {
   const state = useSave();
-  const sim = simByCustomer.get(customerId);
+  const sim = simFor(customerId);
   const save = customerSave(state, customerId);
   const plan = sim && save ? planFor(sim, save.month) : undefined;
   if (!sim || !save || !plan) return null;
@@ -56,7 +57,7 @@ export function Build({ customerId }: { customerId: string }) {
   const bp = save.running ?? save.blueprint;
   const locked = Boolean(save.running);
   const inCase = save.phase !== 'operate';
-  const name = customerById.get(customerId)?.name ?? customerId;
+  const name = nameFor(customerId);
   const standby = bp.slots['data-c'] === 'rds-standby';
   const replica = bp.slots['data-c'] === 'rds-replica';
   const files = sim.features.includes('files');
@@ -100,7 +101,10 @@ export function Build({ customerId }: { customerId: string }) {
         <Section title="可用性と耐久性" summary={standby ? 'マルチ AZ' : 'シングル AZ'} help={HELP.az}>
           <p className="text-xs text-slate-500">デプロイメントオプション</p>
           <Radio name="az" checked={!standby} disabled={locked} onChange={() => state.setSlot(customerId, 'data-c', null)}>シングル AZ DB インスタンス</Radio>
-          <Radio name="az" checked={standby} disabled={locked} onChange={() => state.setSlot(customerId, 'data-c', 'rds-standby')}>マルチ AZ DB インスタンス（スタンバイあり）</Radio>
+          <Radio name="az" checked={standby} disabled={locked || !partUnlocked(state, 'rds-standby')} onChange={() => state.setSlot(customerId, 'data-c', 'rds-standby')}>
+            {partUnlocked(state, 'rds-standby') ? '' : '🔒 '}マルチ AZ DB インスタンス（スタンバイあり）
+            {!partUnlocked(state, 'rds-standby') && <span className="block text-xs text-slate-500">柏木さんの{UNLOCK_MONTH['rds-standby']}か月目から使えます</span>}
+          </Radio>
           {replica && <p className="text-xs text-slate-500">設計図でリードレプリカを置いています。ここを選び直すと、レプリカは外れます。</p>}
         </Section>
 

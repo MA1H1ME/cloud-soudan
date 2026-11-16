@@ -1,6 +1,7 @@
 // 運用シムの計算。構成（ブループリント）とその月の出来事から、30日分の結果を出す。
 // 乱数は使わない。同じ構成で同じ月を回せば、必ず同じ結果になる。
 import type { Blueprint, MonthPlan } from './schema';
+import { chosen, incidentFor, type Incident, type IncidentOption, type Responses } from './incidents';
 import {
   ASG_COST_PER_DAY, ASG_MAX_EXTRA, BACKUP_COST, EC2_CAPACITY, PARTS, SLOW_DAYS_ALLOWED, SLOW_RATIO,
 } from './parts';
@@ -30,6 +31,8 @@ export interface MonthResult {
   uptime: number; slowDays: number;
   kpi: { budget: boolean; uptime: boolean; performance: boolean; security: boolean };
   grade: Grade;
+  /** 判断が要った出来事と、選んだ対応 */
+  incidents: { incident: Incident; option: IncidentOption; answered: boolean }[];
 }
 
 const AZ_OUTAGE_DAYS = 0.4;
@@ -116,10 +119,17 @@ function runStatic(profitPerVisit: number, plan: MonthPlan, bp: Blueprint): Mont
     fired: fired.sort((a, b) => a.day - b.day),
     fixedCost: cost, cost, earned, lost: potential - earned, net: earned - cost,
     uptime: 1, slowDays, kpi, grade: met === 4 ? 'best' : met === 3 ? 'good' : met === 2 ? 'fair' : 'fail',
+    incidents: [],
   };
 }
 
-export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint): MonthResult {
+/** その月に判断が要る出来事（構成だけで決まる） */
+export function monthIncidents(plan: MonthPlan, bp: Blueprint): Incident[] {
+  const base = baseCapacity(bp), asg = scalingActive(bp);
+  return [...plan.events].sort((a, b) => a.day - b.day).flatMap((ev, i) => incidentFor(ev, i, plan, bp, base, asg) ?? []);
+}
+
+export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint, responses: Responses = {}): MonthResult {
   if (bp.site !== 'none') return runStatic(profitPerVisit, plan, bp);
   const load = Array.from({ length: DAYS }, (_, i) => plan.visitsPerDay * (1 + 0.005 * i));
   const down = Array.from({ length: DAYS }, () => 0);
@@ -139,17 +149,31 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint)
   let breached = false;
   const web = webServers(bp);
   const events = [...plan.events].sort((a, b) => a.day - b.day);
+  const base = baseCapacity(bp);
+  const asg = scalingActive(bp);
+  const boost = Array.from({ length: DAYS }, () => 0);
+  let extraCost = 0;
+  const incidents: MonthResult['incidents'] = [];
 
-  for (const ev of events) {
+  for (const [index, ev] of events.entries()) {
+    const inc = incidentFor(ev, index, plan, bp, base, asg);
+    // 選ぶ前（検証やスポット案件の計算）は、対応による補正をかけない
+    const opt = inc && inc.key in responses ? chosen(inc, responses) : undefined;
+    if (inc) incidents.push({ incident: inc, option: opt ?? chosen(inc, responses), answered: Boolean(opt) });
+    extraCost += opt?.effect.extraCost ?? 0;
+    const day = profitPerVisit * plan.visitsPerDay;
     if (ev.type === 'spike') {
-      for (let i = ev.day - 1; i < Math.min(DAYS, ev.day - 1 + (ev.days ?? 2)); i++) load[i] = load[i]! * (ev.factor ?? 2);
+      for (let i = ev.day - 1; i < Math.min(DAYS, ev.day - 1 + (ev.days ?? 2)); i++) {
+        load[i] = load[i]! * (ev.factor ?? 2);
+        boost[i] = boost[i]! + (opt?.effect.capBoost ?? 0);
+      }
       continue;
     }
     if (ev.type === 'bucket-probe') {
       if (bp.s3Public) {
         breached = true;
         fire('s3-public-leak', ev.day, ev.label);
-        penalty += 5 * profitPerVisit * plan.visitsPerDay;
+        penalty += (opt?.effect.penaltyDays ?? 5) * day;
       } else fire('s3-presigned-private', ev.day, ev.label);
       continue;
     }
@@ -157,7 +181,7 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint)
       if (bp.credential === 'access-key') {
         breached = true; // 審査で重大な指摘を受けた
         fire('cred-access-key', ev.day, ev.label);
-        penalty += 3 * profitPerVisit * plan.visitsPerDay;
+        penalty += (opt?.effect.penaltyDays ?? 3) * day;
       } else if (bp.credential === 'role-full') fire('cred-role-broad', ev.day, ev.label);
       else fire('cred-role-scoped', ev.day, ev.label);
       continue;
@@ -166,14 +190,14 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint)
       if (dbExposed(bp)) {
         breached = true;
         fire('db-exposed', ev.day, ev.label);
-        penalty += 5 * profitPerVisit * plan.visitsPerDay;
+        penalty += (opt?.effect.penaltyDays ?? 5) * day;
       } else fire('db-private', ev.day, ev.label);
       continue;
     }
     const db = dbFailure(bp);
     fire(db.rule, ev.day, ev.label);
     penalty += db.penaltyDays * profitPerVisit * plan.visitsPerDay;
-    let outage = db.down;
+    let outage = opt?.effect.down ?? db.down;
     if (ev.type === 'az-outage') {
       // AZ-a の障害。AZ-c のサーバーにアクセスが届く構成なら、Web は止まらない
       const survives = bp.slots['app-c'] !== null && (bp.slots.public !== null || bp.slots['app-a'] === null);
@@ -187,8 +211,6 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint)
     addDown(ev.day, outage);
   }
 
-  const base = baseCapacity(bp);
-  const asg = scalingActive(bp);
   const cap: number[] = [], served: number[] = [], slow: boolean[] = [], scalingByDay: number[] = [], earnedByDay: number[] = [];
   for (let i = 0; i < DAYS; i++) {
     const l = load[i]!;
@@ -197,7 +219,7 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint)
       extra = Math.min(ASG_MAX_EXTRA, Math.ceil((l / SLOW_RATIO - base) / EC2_CAPACITY));
       fire('asg-scale-out', i + 1, 'アクセスの増加');
     }
-    const c = base + extra * EC2_CAPACITY;
+    const c = base + extra * EC2_CAPACITY + boost[i]!;
     cap.push(c);
     scalingByDay.push(extra * ASG_COST_PER_DAY);
     served.push(l <= c ? 1 : c / l);
@@ -215,7 +237,7 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint)
   const potential = load.reduce((sum, l) => sum + profitPerVisit * l, 0);
   const earned = earnedByDay.reduce((a, b) => a + b, 0);
   const fixed = fixedCost(bp);
-  const cost = fixed + scalingByDay.reduce((a, b) => a + b, 0);
+  const cost = fixed + extraCost + scalingByDay.reduce((a, b) => a + b, 0);
   const uptime = up.reduce((a, b) => a + b, 0) / DAYS;
   const slowDays = slow.filter(Boolean).length;
   const kpi = { budget: cost <= plan.budget, uptime: uptime >= plan.uptimeTarget, performance: slowDays <= SLOW_DAYS_ALLOWED, security: !breached };
@@ -227,6 +249,6 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint)
     events: events.map((e) => ({ day: e.day, label: e.label })),
     fired: fired.sort((a, b) => a.day - b.day),
     fixedCost: fixed, cost, earned, lost: potential - earned + penalty, net: earned - penalty - cost,
-    uptime, slowDays, kpi, grade,
+    uptime, slowDays, kpi, grade, incidents,
   };
 }

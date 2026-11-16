@@ -1,8 +1,10 @@
 // 月次レポート：目標の達成度、収支、発動したルールの解説。学習の本体。
-import { customerById, ruleById, simByCustomer } from '../content';
+import { ruleById } from '../content';
+import { nameFor, simFor } from '../jobs';
 import { GRADE_TEXT, PrimaryButton, Screen, Stamp, Voice, pct, yen } from '../components/ui';
 import { RuleSources } from '../components/RuleSources';
 import { Senpai } from '../components/Senpai';
+import { Term } from '../components/Term';
 import { go } from '../router';
 import { radarScores } from '../sim/radar';
 import { Radar } from '../components/Radar';
@@ -11,13 +13,13 @@ import { BEST_BONUS, customerSave, planFor, runningResult, useSave } from '../st
 
 export function Report({ customerId }: { customerId: string }) {
   const state = useSave();
-  const sim = simByCustomer.get(customerId);
+  const sim = simFor(customerId);
   const save = customerSave(state, customerId);
   const plan = sim && save ? planFor(sim, save.month) : undefined;
   const result = sim && save ? runningResult(sim, save) : undefined;
   if (!sim || !save || !plan || !result) return <Screen title="レポートがありません"><PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton></Screen>;
 
-  const name = customerById.get(customerId)?.name ?? customerId;
+  const name = nameFor(customerId);
   const kpis = [
     { ok: result.kpi.budget, label: '予算内', detail: `${yen(result.cost)}／${yen(plan.budget)}` },
     { ok: result.kpi.uptime, label: '稼働率', detail: `${pct(result.uptime, 2)}／目標 ${pct(plan.uptimeTarget)}` },
@@ -30,7 +32,7 @@ export function Report({ customerId }: { customerId: string }) {
   };
 
   return (
-    <Screen title={`月次レポート：${save.month}か月目`} footer={<PrimaryButton onClick={next}>翌月へ進む{result.grade !== 'fail' ? `（契約料 +${yen(sim.contractFee)}${result.grade === 'best' ? `、ボーナス +${yen(BEST_BONUS)}` : ''}）` : '（契約料なし）'}</PrimaryButton>}>
+    <Screen title={`月次レポート：${save.month}か月目`} footer={<PrimaryButton onClick={next}>{planFor(sim, save.month + 1) ? '翌月へ進む' : '契約を完了する'}{result.grade !== 'fail' ? `（契約料 +${yen(sim.contractFee)}${result.grade === 'best' ? `、ボーナス +${yen(BEST_BONUS)}` : ''}）` : '（契約料なし）'}</PrimaryButton>}>
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <Voice name={name} mood={result.grade === 'best' ? 'happy' : result.grade === 'good' ? 'normal' : 'troubled'}>{sim.comments[result.grade]}</Voice>
@@ -51,6 +53,23 @@ export function Report({ customerId }: { customerId: string }) {
           ))}
         </ul>
       </section>
+
+      {result.incidents.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-sm font-bold text-slate-700">あなたの障害対応</h2>
+          <ul className="space-y-2">
+            {result.incidents.map(({ incident, option }) => (
+              <li key={incident.key} className={`border px-3 py-2 text-sm ${option.good ? 'border-emerald-300' : 'border-red-300'}`}>
+                <p className="text-[11px] text-slate-500">{incident.day}日目</p>
+                <p className="font-bold text-slate-900"><span className={option.good ? 'text-emerald-700' : 'text-red-700'}>{option.good ? '◎' : '×'}</span> {option.label}</p>
+                <p className="mt-1 text-slate-800">{option.result}</p>
+                {!option.good && <p className="mt-1 text-xs text-slate-600">良い対応：{incident.options.find((o) => o.good)?.label}</p>}
+                <p className="mt-1 text-xs">関係する用語：<Term id={incident.termId} /></p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {save.running && <Radar scores={radarScores(save.running, plan, sim.features.includes('files'))} priority={sim.priority} />}
 

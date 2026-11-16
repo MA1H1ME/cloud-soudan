@@ -21,3 +21,20 @@ jobs:
       - run: npm test
       # 公開用（確認済みのみ）の検証とビルドが通ることも確認する
       - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # 画面をスマホ幅のブラウザで通しで遊び、エラーが出ないことを確かめる
+      - run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
+      - run: |
+          npx vite preview --port 4173 &
+          for i in $(seq 30); do curl -sf http://localhost:4173/cloud-soudan/ >/dev/null && break; sleep 1; done
+          npm run e2e
