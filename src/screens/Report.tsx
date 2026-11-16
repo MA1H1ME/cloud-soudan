@@ -3,6 +3,8 @@ import { ruleById } from '../content';
 import { nameFor, simFor } from '../jobs';
 import { GRADE_TEXT, PrimaryButton, Screen, Stamp, Voice, pct, yen } from '../components/ui';
 import { RuleSources } from '../components/RuleSources';
+import { useEffect } from 'react';
+import { sfx } from '../sound';
 import { Senpai } from '../components/Senpai';
 import { Term } from '../components/Term';
 import { go } from '../router';
@@ -23,6 +25,12 @@ export function Report({ customerId }: { customerId: string }) {
   const save = customerSave(state, customerId);
   const plan = sim && save ? planFor(sim, save.month) : undefined;
   const result = sim && save ? runningResult(sim, save) : undefined;
+  const grade = result?.grade;
+  useEffect(() => {
+    if (!grade) return;
+    const t = setTimeout(() => (grade === 'best' ? sfx.fanfare() : grade === 'fail' ? sfx.bad() : sfx.stamp()), 450);
+    return () => clearTimeout(t);
+  }, [grade]);
   if (!sim || !save || !plan || !result) return <Screen title="レポートがありません"><PrimaryButton onClick={() => go({ name: 'floor' })}>フロアに戻る</PrimaryButton></Screen>;
 
   const name = nameFor(customerId);
