@@ -165,7 +165,9 @@ function tryGenerate(seed: number, salt: number, t: JobTemplates, stage: number,
     start = { ...BASE, backup: r.chance(0.5) };
     const files = kind === 'files' && 'file' in tpl;
     const prefer = { performance: ['peak'], reliability: ['failure'], security: files ? ['audit', 'probe'] : ['probe'], cost: [] }[priority];
-    const aspects = choose(files ? ['bucket'] : [], prefer, files ? ['peak', 'failure', 'probe', 'audit'] : ['peak', 'failure', 'probe']);
+    // 読み込みの急増（リードレプリカで受ける）は、レプリカを使える段階3から
+    const reads = stage >= 3 ? ['reads'] : [];
+    const aspects = choose(files ? ['bucket'] : [], prefer, files ? ['peak', 'failure', 'probe', 'audit', ...reads] : ['peak', 'failure', 'probe', ...reads]);
     if (aspects.includes('peak')) {
       const peak = 'peak' in tpl ? r.pick(tpl.peak) : '繁忙期';
       const factor = r.pick([1.6, 2, 2.4]);
@@ -177,6 +179,11 @@ function tryGenerate(seed: number, salt: number, t: JobTemplates, stage: number,
       events.push({ day: r.int(14, 22), type, label: type === 'az-outage' ? 'AZ-a の障害' : 'データベースの障害' });
       req('data', 'data', `${thing}の記録は必ず残す`);
       if (priority === 'reliability') req('downtime', 'downtime', '止まってよい長さ：半日まで');
+    }
+    if (aspects.includes('reads')) {
+      const label = r.pick(['月末の売上集計', '在庫の棚卸し', '年間レポートの作成']);
+      events.push({ day: r.int(22, 26), type: 'read-surge', label, days: 3 });
+      req('reads', 'reads', `${label}で、データベースの読み込みが3日間増える`);
     }
     if (aspects.includes('probe')) {
       events.push({ day: r.int(20, 27), type: 'probe', label: 'データベースへの不審なアクセス' });

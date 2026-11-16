@@ -1,4 +1,4 @@
-# スポット案件（復習用）。学習項目ごとに2件。合否は運用シムの計算で決まる。
+# スポット案件（復習用）。学習項目ごとに2件以上。合否は運用シムの計算で決まる。
 # お客さんは架空。金額・訪問数はゲーム内の値。
 - id: spot-photo-studio
   conceptId: rds-multiaz-vs-read-replica
@@ -237,3 +237,16 @@
     - { id: none, label: 公開しているものなので、このままにする, patch: {} }
     - { id: website, label: CloudFront をやめて、S3 のウェブサイト機能だけにする, patch: { site: s3-website } }
     - { id: lifecycle, label: ライフサイクルルールで、古い号を低頻度アクセス向けのクラスへ移す, patch: { lifecycle: true } }
+- id: spot-bookstore
+  conceptId: rds-multiaz-vs-read-replica
+  guest: 杉浦さん
+  business: 古書店の在庫検索サイト
+  voice: 毎月末に在庫の集計を回すと、その間ずっとお客さんの検索が重くなるんです。止まるのは半日くらいなら構いません。
+  goal: 月末の集計（3日間）があっても、重い日は2日まで
+  plan: { visitsPerDay: 600, budget: 30000, uptimeTarget: 0.98, events: [{ day: 25, type: read-surge, label: 月末の在庫集計, days: 3 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false }
+  avoid: [db-read-bottleneck]
+  options:
+    - { id: standby, label: マルチ AZ にして、スタンバイに集計を任せる, patch: { slots: { data-c: rds-standby } } }
+    - { id: replica, label: リードレプリカを追加して、集計はそこで読む, patch: { slots: { data-c: rds-replica } } }
+    - { id: ec2, label: Web サーバーをもう1台増やす, patch: { slots: { app-c: ec2 } } }

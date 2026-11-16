@@ -266,3 +266,23 @@
     - { title: 'Managing the lifecycle of objects', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html', checkedAt: '2026-11-16' }
     - { title: 'Understanding and managing Amazon S3 storage classes', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html', checkedAt: '2026-11-16' }
   review: { status: verified, verifiedAt: '2026-11-16' }
+- id: db-replica-read
+  conceptId: rds-multiaz-vs-read-replica
+  tone: good
+  headline: 集計の読み込みはリードレプリカが受け、本体は重くならなかった
+  explanation: リードレプリカは、読み取りの多い負荷のために、1つのDBインスタンスの処理能力を超えて読み取りを広げる仕組みです。増えた読み取りの通信を、リードレプリカに向けられます。
+  examPoint: 「読み取りが多い」「レポートや集計でDBが重い」には、リードレプリカで読み取りを分ける構成が基本。
+  sources:
+    - { title: 'Working with DB instance read replicas', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
+- id: db-read-bottleneck
+  conceptId: rds-multiaz-vs-read-replica
+  tone: bad
+  headline: 集計の読み込みが本体に集中し、数日間ページが重くなった
+  explanation: マルチ AZ 配置のスタンバイは、読み取りの通信を受けられません。読み取りだけの通信を受けるには、リードレプリカ（またはマルチ AZ DB クラスター）を使います。リードレプリカがなければ、増えた読み取りもすべて本体が受けます。
+  examPoint: 「スタンバイで読み取りを分散する」は誤答。マルチAZは可用性のため、リードレプリカは読み取りの性能のため。
+  ticket: { kind: performance, voice: '集計を回している間、お客さんのページがずっと重かったんです' }
+  sources:
+    - { title: 'Multi-AZ DB instance deployments for Amazon RDS', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html', checkedAt: '2026-11-16' }
+    - { title: 'Working with DB instance read replicas', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }

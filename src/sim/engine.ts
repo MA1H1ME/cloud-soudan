@@ -17,6 +17,7 @@ export const RULE_IDS = [
   'db-exposed', 'db-private',
   's3-public-leak', 's3-presigned-private', 'cred-access-key', 'cred-role-broad', 'cred-role-scoped',
   's3-website-no-https', 'cf-https-oac', 'cf-edge-cache', 'static-ec2-overload', 'static-on-ec2', 's3-lifecycle', 's3-no-lifecycle',
+  'db-replica-read', 'db-read-bottleneck',
 ] as const;
 export type RuleId = (typeof RULE_IDS)[number];
 
@@ -36,6 +37,8 @@ export interface MonthResult {
 }
 
 const AZ_OUTAGE_DAYS = 0.4;
+/** 読み込みが追いつかない日に、買い物を終えられる割合 */
+const READ_SLOW_SERVED = 0.85;
 
 export function webServers(bp: Blueprint): { count: number; effective: number } {
   const count = (bp.slots['app-a'] ? 1 : 0) + (bp.slots['app-c'] ? 1 : 0);
@@ -152,6 +155,8 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint,
   const base = baseCapacity(bp);
   const asg = scalingActive(bp);
   const boost = Array.from({ length: DAYS }, () => 0);
+  // データベースの読み込みが追いつかない日（Web の処理能力とは別に重くなる）
+  const dbSlow = Array.from({ length: DAYS }, () => false);
   let extraCost = 0;
   const incidents: MonthResult['incidents'] = [];
 
@@ -166,6 +171,15 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint,
       for (let i = ev.day - 1; i < Math.min(DAYS, ev.day - 1 + (ev.days ?? 2)); i++) {
         load[i] = load[i]! * (ev.factor ?? 2);
         boost[i] = boost[i]! + (opt?.effect.capBoost ?? 0);
+      }
+      continue;
+    }
+    if (ev.type === 'read-surge') {
+      // 集計などで読み込みが急増する。読み取りを受けられるのはリードレプリカだけ（スタンバイは読み取りに使えない）
+      if (bp.slots['data-c'] === 'rds-replica') fire('db-replica-read', ev.day, ev.label);
+      else {
+        fire('db-read-bottleneck', ev.day, ev.label);
+        for (let i = ev.day - 1; i < Math.min(DAYS, ev.day - 1 + (ev.days ?? 3)); i++) dbSlow[i] = true;
       }
       continue;
     }
@@ -222,8 +236,8 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint,
     const c = base + extra * EC2_CAPACITY + boost[i]!;
     cap.push(c);
     scalingByDay.push(extra * ASG_COST_PER_DAY);
-    served.push(l <= c ? 1 : c / l);
-    slow.push(l > c * SLOW_RATIO);
+    served.push((l <= c ? 1 : c / l) * (dbSlow[i] ? READ_SLOW_SERVED : 1));
+    slow.push(l > c * SLOW_RATIO || dbSlow[i]!);
     if (l > c) fire(web.effective <= 1 ? 'web-single-overload' : 'web-fixed-overload', i + 1, 'アクセスの増加');
     else if (l > EC2_CAPACITY && web.effective >= 2 && !asg) fire('web-alb-spread', i + 1, 'アクセスの増加');
     earnedByDay.push(profitPerVisit * l * (1 - down[i]!) * served[i]!);
