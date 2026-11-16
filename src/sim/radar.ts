@@ -11,6 +11,15 @@ export const AXIS_LABELS: Record<Axis, string> = { security: 'セキュリティ
 const clamp = (n: number) => Math.max(0, Math.min(5, n));
 
 export function radarScores(bp: Blueprint, plan: MonthPlan, files: boolean): Record<Axis, number> {
+  if (bp.site !== 'none') {
+    const room = 1 - fixedCost(bp, plan.month) / plan.budget;
+    const by = { ec2: [3, 2, 2, 1], 's3-website': [2, 4, 3, 4], 's3-cloudfront': [5, 5, 5, 4] }[bp.site];
+    return {
+      security: by[0]!, reliability: by[1]!, performance: by[2]!,
+      cost: clamp(room >= 0.5 ? 5 : room >= 0.3 ? 4 : room >= 0.1 ? 3 : room >= 0 ? 2 : 0),
+      operations: clamp(by[3]! + (bp.lifecycle ? 1 : 0)),
+    };
+  }
   const standby = bp.slots['data-c'] === 'rds-standby';
   const replica = bp.slots['data-c'] === 'rds-replica';
   const web = webServers(bp);

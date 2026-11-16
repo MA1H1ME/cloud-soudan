@@ -4,6 +4,13 @@ import { customerById, ruleById, simByCustomer } from '../content';
 import { BlueprintView } from '../components/BlueprintView';
 import { PrimaryButton, Screen, pct, yen } from '../components/ui';
 import { StepBar } from '../components/StepBar';
+import { StaticView } from '../components/StaticView';
+
+const SITES = [
+  { id: 'ec2', label: 'Amazon EC2 にWebサーバーを立てる', desc: 'サーバー1台。OSから自分で管理する' },
+  { id: 's3-website', label: 'Amazon S3 の静的ウェブサイトホスティング', desc: 'バケットを公開して、そのままサイトにする' },
+  { id: 's3-cloudfront', label: 'Amazon S3 ＋ Amazon CloudFront', desc: 'バケットは非公開。CloudFront 経由で配信する' },
+] as const;
 import { go } from '../router';
 import { baseCapacity, fixedCost, scalingActive } from '../sim/engine';
 import { ASG_COST_PER_DAY, ASG_MAX_EXTRA, EC2_CAPACITY, LOCKED_SLOTS, PARTS, SLOT_LABELS, SLOT_OPTIONS } from '../sim/parts';
@@ -22,7 +29,8 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
   const bp = save.blueprint;
   const inCase = save.phase !== 'operate';
   const name = customerById.get(customerId)?.name ?? customerId;
-  const cost = fixedCost(bp);
+  const cost = fixedCost(bp, plan.month);
+  const isStatic = bp.site !== 'none';
   const cap = baseCapacity(bp);
   const asg = scalingActive(bp);
   const last = pastResults(sim, save).at(-1)?.result;
@@ -48,6 +56,25 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
 
       {save.running && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-slate-800">月の途中は構成を変えられません。月末の報告のあとで直せます。</p>}
       {inCase && <StepBar customerId={customerId} current="design" />}
+      {isStatic ? (
+        <>
+          <StaticView blueprint={save.running ?? bp} />
+          <section className="space-y-2">
+            <h2 className="text-sm font-bold text-slate-900">サイトをどこに置いて、どう配信する？</h2>
+            {SITES.map((o) => (
+              <button
+                key={o.id} type="button" aria-pressed={bp.site === o.id} disabled={Boolean(save.running)}
+                onClick={() => state.setSite(customerId, o.id)}
+                className={`w-full rounded-lg px-3 py-2 text-left text-sm ${bp.site === o.id ? 'border-2 border-blue-600 bg-blue-50' : 'border border-slate-300'}`}
+              >
+                <span className="font-bold text-slate-900">{o.label}</span>
+                <span className="block text-xs text-slate-600">{o.desc}</span>
+              </button>
+            ))}
+          </section>
+        </>
+      ) : (
+        <>
       <BlueprintView blueprint={save.running ?? bp} selected={save.running ? null : selected} onSelect={save.running ? undefined : setSelected} />
 
       {save.running ? null : selected ? (
@@ -93,6 +120,9 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
         </label>
       </section>
 
+        </>
+      )}
+
       <section className="grid grid-cols-2 gap-2 text-sm">
         <div className="rounded-lg border border-slate-300 px-3 py-2">
           <p className="text-[11px] text-slate-500">月額の見積もり／予算</p>
@@ -102,14 +132,14 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
           <p className="text-[11px] text-slate-500">稼働率の目標</p>
           <p className="font-bold text-slate-900">{pct(plan.uptimeTarget)} 以上</p>
         </div>
-        <div className="col-span-2 rounded-lg border border-slate-300 px-3 py-2">
+        {!isStatic && <div className="col-span-2 rounded-lg border border-slate-300 px-3 py-2">
           <p className="text-[11px] text-slate-500">1日にさばける訪問数／ふだんの訪問数</p>
           <p className={`font-bold ${cap < plan.visitsPerDay ? 'text-red-700' : 'text-slate-900'}`}>
             {cap.toLocaleString('ja-JP')}
             {asg && <span className="font-normal text-slate-500">（混雑時は最大 {(cap + ASG_MAX_EXTRA * EC2_CAPACITY).toLocaleString('ja-JP')}）</span>}
             <span className="font-normal text-slate-500">／{plan.visitsPerDay.toLocaleString('ja-JP')}</span>
           </p>
-        </div>
+        </div>}
       </section>
       <p className="text-center text-[11px] text-slate-400">金額と処理能力はゲーム内の値です。</p>
     </Screen>

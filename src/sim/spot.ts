@@ -11,6 +11,8 @@ const patchSchema = z.object({
   dbPublic: z.boolean().optional(),
   dbSgOpen: z.boolean().optional(),
   s3Public: z.boolean().optional(),
+  site: z.enum(['none', 'ec2', 's3-website', 's3-cloudfront']).optional(),
+  lifecycle: z.boolean().optional(),
   credential: z.enum(['access-key', 'role-full', 'role-scoped']).optional(),
 });
 
@@ -22,6 +24,7 @@ export const spotSchema = z.object({
   voice: z.string().min(1),
   goal: z.string().min(1),
   profitPerVisit: z.number().default(8),
+  month: z.number().int().min(1).default(1), // 静的サイトの保存料は月で変わる
   plan: monthPlanSchema.omit({ month: true, brief: true }),
   start: blueprintSchema,
   files: z.boolean().default(false), // S3でファイルを配る構成か（画面の表示用）
@@ -40,12 +43,12 @@ export interface SpotOutcome { passed: boolean; result: MonthResult; reasons: st
 export function judgeSpot(spot: Spot, optionId: string): SpotOutcome {
   const option = spot.options.find((o) => o.id === optionId);
   if (!option) throw new Error(`選択肢がありません: ${spot.id}/${optionId}`);
-  const plan = { ...spot.plan, month: 1, brief: spot.voice };
+  const plan = { ...spot.plan, month: spot.month, brief: spot.voice };
   const result = runMonth(spot.profitPerVisit, plan, applyPatch(spot.start, option.patch));
   const reasons: string[] = [];
   if (!result.kpi.budget) reasons.push('予算を超えた');
   if (!result.kpi.uptime) reasons.push('稼働率の目標を割った');
-  if (!result.kpi.security) reasons.push('情報が漏れた');
+  if (!result.kpi.security) reasons.push('セキュリティの問題が起きた');
   if (result.fired.some((f) => (spot.avoid as RuleId[]).includes(f.ruleId))) reasons.push('防ぎたかった問題が起きた');
   return { passed: reasons.length === 0, result, reasons };
 }

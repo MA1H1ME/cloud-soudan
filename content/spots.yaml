@@ -183,3 +183,57 @@
     - { id: none, label: ロールにしたので、このままで通ると答える, patch: {} }
     - { id: key, label: 権限を絞ったアクセスキーを作り、サーバーに保存する, patch: { credential: access-key } }
     - { id: role-scoped, label: ロールの権限を、集計用バケットへの必要な操作だけに絞る, patch: { credential: role-scoped } }
+- id: spot-cafe-site
+  conceptId: static-site-delivery
+  guest: 清水さん
+  business: カフェの紹介サイト
+  voice: メニューと地図を載せているだけのサイトです。お客さんに「保護されていない通信」と出ると言われました。費用は増やしたくありません。
+  goal: HTTPS で配信する。予算 ¥2,000 以内
+  plan: { visitsPerDay: 200, budget: 2000, uptimeTarget: 0.98, events: [{ day: 9, type: https-check, label: お客さんからの指摘 }, { day: 30, type: invoice, label: 今月の請求書 }] }
+  start: { slots: { public: null, app-a: null, app-c: null, data-a: null, data-c: null }, backup: false, autoScaling: false, site: s3-website }
+  avoid: [s3-website-no-https, static-on-ec2]
+  options:
+    - { id: ec2, label: EC2 を1台立てて、証明書を入れる, patch: { site: ec2 } }
+    - { id: cf, label: S3 の前に CloudFront を置く, patch: { site: s3-cloudfront } }
+    - { id: none, label: S3 のウェブサイト機能の設定を見直す, patch: {} }
+- id: spot-band
+  conceptId: static-site-delivery
+  guest: 長谷川さん
+  business: バンドの告知サイト
+  voice: ライブの告知を出すと、一気に10倍のアクセスが来てサイトが落ちます。普段はほとんど人が来ないので、お金はかけられません。
+  goal: 告知の日も落ちない。予算 ¥2,000 以内
+  plan: { visitsPerDay: 300, budget: 2000, uptimeTarget: 0.98, events: [{ day: 14, type: spike, label: ライブの告知, factor: 10, days: 2 }, { day: 30, type: invoice, label: 今月の請求書 }] }
+  start: { slots: { public: null, app-a: null, app-c: null, data-a: null, data-c: null }, backup: false, autoScaling: false, site: ec2 }
+  avoid: [static-ec2-overload, static-on-ec2]
+  options:
+    - { id: none, label: 告知の日だけ我慢してもらう, patch: {} }
+    - { id: cf, label: サイトを S3 に移し、CloudFront 経由で配信する, patch: { site: s3-cloudfront } }
+    - { id: lifecycle, label: S3 のライフサイクルルールを設定する, patch: { lifecycle: true } }
+- id: spot-photo-archive
+  conceptId: s3-storage-classes
+  guest: 安藤さん
+  business: 写真家の作品アーカイブ
+  voice: 10年分の作品を S3 に置いています。見られるのは新作ばかりなのに、保存料が毎月上がっていきます。
+  goal: 保存料の伸びを抑える。予算 ¥4,000 以内
+  month: 6
+  plan: { visitsPerDay: 200, budget: 4000, uptimeTarget: 0.98, events: [{ day: 12, type: storage-review, label: たまった写真の保存料 }] }
+  start: { slots: { public: null, app-a: null, app-c: null, data-a: null, data-c: null }, backup: false, autoScaling: false, site: s3-cloudfront }
+  avoid: [s3-no-lifecycle]
+  options:
+    - { id: lifecycle, label: ライフサイクルルールで、古い写真を低頻度アクセス向けのクラスへ移す, patch: { lifecycle: true } }
+    - { id: ec2, label: 写真を EC2 のサーバーに移す, patch: { site: ec2 } }
+    - { id: none, label: 大事な作品なので、このままにする, patch: {} }
+- id: spot-newsletter
+  conceptId: s3-storage-classes
+  guest: 桜井さん
+  business: 地域情報誌のバックナンバー公開
+  voice: 創刊号からのPDFを全部公開しています。読まれるのは最新号だけで、昔の号は年に数回しか開かれません。
+  goal: 保存料の伸びを抑える。予算 ¥3,500 以内
+  month: 5
+  plan: { visitsPerDay: 150, budget: 3500, uptimeTarget: 0.98, events: [{ day: 18, type: storage-review, label: たまったPDFの保存料 }] }
+  start: { slots: { public: null, app-a: null, app-c: null, data-a: null, data-c: null }, backup: false, autoScaling: false, site: s3-cloudfront }
+  avoid: [s3-no-lifecycle]
+  options:
+    - { id: none, label: 公開しているものなので、このままにする, patch: {} }
+    - { id: website, label: CloudFront をやめて、S3 のウェブサイト機能だけにする, patch: { site: s3-website } }
+    - { id: lifecycle, label: ライフサイクルルールで、古い号を低頻度アクセス向けのクラスへ移す, patch: { lifecycle: true } }

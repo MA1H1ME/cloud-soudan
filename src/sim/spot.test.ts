@@ -36,5 +36,9 @@ describe('スポット案件', () => {
     expect(passing('spot-realtor')).toEqual(['private']);
     expect(passing('spot-print-shop')).toEqual(['role-scoped']);
     expect(passing('spot-survey')).toEqual(['role-scoped']);
+    expect(passing('spot-cafe-site')).toEqual(['cf']);
+    expect(passing('spot-band')).toEqual(['cf']);
+    expect(passing('spot-photo-archive')).toEqual(['lifecycle']);
+    expect(passing('spot-newsletter')).toEqual(['lifecycle']);
   });
 });

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { ruleById, spotById } from '../content';
 import { BlueprintView } from '../components/BlueprintView';
+import { StaticView } from '../components/StaticView';
 import { RuleSources } from '../components/RuleSources';
 import { Face, PrimaryButton, Screen, Stamp, pct, yen } from '../components/ui';
 import { go } from '../router';
@@ -73,10 +74,10 @@ export function SpotScreen({ spotId, practice }: { spotId: string; practice: boo
       </div>
       <p className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-slate-900"><b>目標：</b>{spot.goal}</p>
 
-      <BlueprintView blueprint={bp} />
+      {bp.site !== 'none' ? <StaticView blueprint={bp} /> : <BlueprintView blueprint={bp} />}
       <p className="text-center text-xs text-slate-500">
-        月額 {yen(fixedCost(bp))}／予算 {yen(spot.plan.budget)}
-        {bp.dbPublic && '・DBのパブリックアクセスあり'}{bp.dbSgOpen && '・0.0.0.0/0 を許可'}{!bp.backup && '・自動バックアップなし'}
+        月額 {yen(fixedCost(bp, spot.month))}／予算 {yen(spot.plan.budget)}
+        {bp.site === 'none' && bp.dbPublic && '・DBのパブリックアクセスあり'}{bp.site === 'none' && bp.dbSgOpen && '・0.0.0.0/0 を許可'}{bp.site === 'none' && !bp.backup && '・自動バックアップなし'}
         {spot.files && (bp.s3Public ? '・バケット公開' : '・バケット非公開')}
         {spot.files && { 'access-key': '・アクセスキーを保存', 'role-full': '・IAMロール（フルアクセス）', 'role-scoped': '・IAMロール（必要な分だけ）' }[bp.credential]}
       </p>

@@ -15,6 +15,7 @@ export const RULE_IDS = [
   'web-single-az-outage', 'web-multi-az-survive', 'web-second-without-alb', 'alb-single-ec2',
   'db-exposed', 'db-private',
   's3-public-leak', 's3-presigned-private', 'cred-access-key', 'cred-role-broad', 'cred-role-scoped',
+  's3-website-no-https', 'cf-https-oac', 'cf-edge-cache', 'static-ec2-overload', 'static-on-ec2', 's3-lifecycle', 's3-no-lifecycle',
 ] as const;
 export type RuleId = (typeof RULE_IDS)[number];
 
@@ -47,7 +48,17 @@ export function baseCapacity(bp: Blueprint): number {
   return webServers(bp).effective * EC2_CAPACITY;
 }
 
-export function fixedCost(bp: Blueprint): number {
+const SITE_COST = { none: 0, ec2: 6000, 's3-website': 300, 's3-cloudfront': 500 } as const;
+const STORAGE_COST_PER_MONTH = 800; // 写真が毎月たまる分（ゲーム内の値）
+
+/** 静的サイトの月額。写真の保存料は月を追うごとに増え、ライフサイクルルールで半分になる */
+export function staticCost(bp: Blueprint, month: number): number {
+  const storage = STORAGE_COST_PER_MONTH * month * (bp.lifecycle ? 0.5 : 1);
+  return SITE_COST[bp.site] + storage;
+}
+
+export function fixedCost(bp: Blueprint, month = 1): number {
+  if (bp.site !== 'none') return staticCost(bp, month);
   const parts = Object.values(bp.slots).reduce((sum, p) => sum + (p ? PARTS[p].cost : 0), 0);
   return parts + (bp.backup ? BACKUP_COST : 0);
 }
@@ -65,7 +76,51 @@ export function dbFailure(bp: Blueprint): { rule: RuleId; down: number; penaltyD
   return { rule: 'db-no-backup', down: 1.5, penaltyDays: 3 };
 }
 
+function runStatic(profitPerVisit: number, plan: MonthPlan, bp: Blueprint): MonthResult {
+  const load = Array.from({ length: DAYS }, (_, i) => plan.visitsPerDay * (1 + 0.005 * i));
+  const fired: FiredRule[] = [];
+  const fire = (ruleId: RuleId, day: number, label: string) => {
+    if (!fired.some((f) => f.ruleId === ruleId)) fired.push({ ruleId, day, label });
+  };
+  let insecure = false;
+  const events = [...plan.events].sort((a, b) => a.day - b.day);
+  for (const ev of events) {
+    if (ev.type === 'spike') {
+      for (let i = ev.day - 1; i < Math.min(DAYS, ev.day - 1 + (ev.days ?? 2)); i++) load[i] = load[i]! * (ev.factor ?? 2);
+      if (bp.site === 's3-cloudfront') fire('cf-edge-cache', ev.day, ev.label);
+    } else if (ev.type === 'https-check') {
+      if (bp.site === 's3-website') {
+        insecure = true;
+        fire('s3-website-no-https', ev.day, ev.label);
+      } else if (bp.site === 's3-cloudfront') fire('cf-https-oac', ev.day, ev.label);
+    } else if (ev.type === 'storage-review') {
+      fire(bp.lifecycle ? 's3-lifecycle' : 's3-no-lifecycle', ev.day, ev.label);
+    } else if (ev.type === 'invoice' && bp.site === 'ec2') fire('static-on-ec2', ev.day, ev.label);
+  }
+  const peak = Math.max(...load);
+  const cap = load.map(() => (bp.site === 'ec2' ? EC2_CAPACITY : peak * 1.5));
+  const served = load.map((l, i) => (l <= cap[i]! ? 1 : cap[i]! / l));
+  const slow = load.map((l, i) => l > cap[i]! * SLOW_RATIO);
+  load.forEach((l, i) => l > cap[i]! && fire('static-ec2-overload', i + 1, 'アクセスの増加'));
+  const up = load.map(() => 1);
+  const earnedByDay = load.map((l, i) => profitPerVisit * l * served[i]!);
+  const earned = earnedByDay.reduce((a, b) => a + b, 0);
+  const potential = load.reduce((sum, l) => sum + profitPerVisit * l, 0);
+  const cost = staticCost(bp, plan.month);
+  const slowDays = slow.filter(Boolean).length;
+  const kpi = { budget: cost <= plan.budget, uptime: true, performance: slowDays <= SLOW_DAYS_ALLOWED, security: !insecure };
+  const met = Number(kpi.budget) + Number(kpi.uptime) + Number(kpi.performance) + Number(kpi.security);
+  return {
+    load, cap, up, served, slow, earnedByDay, scalingByDay: load.map(() => 0),
+    events: events.map((e) => ({ day: e.day, label: e.label })),
+    fired: fired.sort((a, b) => a.day - b.day),
+    fixedCost: cost, cost, earned, lost: potential - earned, net: earned - cost,
+    uptime: 1, slowDays, kpi, grade: met === 4 ? 'best' : met === 3 ? 'good' : met === 2 ? 'fair' : 'fail',
+  };
+}
+
 export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint): MonthResult {
+  if (bp.site !== 'none') return runStatic(profitPerVisit, plan, bp);
   const load = Array.from({ length: DAYS }, (_, i) => plan.visitsPerDay * (1 + 0.005 * i));
   const down = Array.from({ length: DAYS }, () => 0);
   const fired: FiredRule[] = [];

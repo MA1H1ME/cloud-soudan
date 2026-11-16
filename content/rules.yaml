@@ -195,3 +195,74 @@
     - { title: 'IAM roles for Amazon EC2', url: 'https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html', checkedAt: '2026-11-16' }
     - { title: 'Security best practices in IAM', url: 'https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html', checkedAt: '2026-11-16' }
   review: { status: verified, verifiedAt: '2026-11-16' }
+- id: s3-website-no-https
+  conceptId: static-site-delivery
+  tone: bad
+  headline: 読者のブラウザに「保護されていない通信」と表示された
+  explanation: Amazon S3 のウェブサイトエンドポイントは、HTTPS に対応していません。また、ウェブサイトエンドポイントで公開するには、コンテンツをすべて公開読み取り可能にする必要があります。HTTPS を使うには、CloudFront を前段に置くか、AWS Amplify Hosting を使います（AWSは Amplify Hosting を推奨しています）。
+  examPoint: 「S3の静的サイトをHTTPSで配信したい」には、CloudFront を前段に置く構成。S3 のウェブサイトエンドポイントだけでは HTTPS にできない。
+  ticket: { kind: security, voice: '読者さんから「保護されていない通信と出る」と言われました。鍵マークが出ないんです' }
+  sources:
+    - { title: 'Website endpoints', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteEndpoints.html', checkedAt: '2026-11-16' }
+    - { title: 'Hosting a static website using Amazon S3', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
+- id: cf-https-oac
+  conceptId: static-site-delivery
+  tone: good
+  headline: CloudFront 経由の HTTPS で配信でき、バケットは公開せずに済んだ
+  explanation: CloudFront のオリジンアクセスコントロール（OAC）は、Amazon S3 などのオリジンを保護する仕組みです。バケットポリシーで CloudFront からのアクセスを許可するので、バケットそのものを公開する必要がありません。
+  examPoint: 「S3のコンテンツには CloudFront 経由でだけアクセスさせたい」には、オリジンアクセスコントロール（OAC）。
+  sources:
+    - { title: 'Restrict access to an Amazon S3 origin', url: 'https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html', checkedAt: '2026-11-16' }
+    - { title: 'Website endpoints', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteEndpoints.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
+- id: cf-edge-cache
+  conceptId: static-site-delivery
+  tone: good
+  headline: アクセスが急増しても、CloudFront がエッジから配信して表示は速いままだった
+  explanation: CloudFront は、エッジロケーションと呼ばれる世界中のデータセンターからコンテンツを配信します。コンテンツがすでにエッジロケーションにあれば、すぐに配信されます。ファイルのコピーが複数のエッジロケーションに保持（キャッシュ）されるので、信頼性と可用性も上がります。
+  examPoint: 「世界中の利用者に速く」「静的コンテンツ」と書かれていたら、CloudFront。
+  sources:
+    - { title: 'What is Amazon CloudFront?', url: 'https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Introduction.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
+- id: static-ec2-overload
+  conceptId: static-site-delivery
+  tone: bad
+  headline: 記事が拡散したとき、サーバー1台では受けきれず、ページが開かなくなった
+  explanation: Amazon S3 で静的ウェブサイトをホストできます。静的ウェブサイトのページは、静的なコンテンツでできています。文章と写真だけのサイトなら、サーバーを自分で用意して管理する必要はありません。
+  examPoint: 「静的コンテンツ」「運用負荷を最小に」と書かれていたら、EC2 ではなく S3（＋CloudFront）。
+  ticket: { kind: performance, voice: '記事が拡散した夜、サイトが開かなかったそうです。一番見てほしいときだったのに' }
+  sources:
+    - { title: 'Hosting a static website using Amazon S3', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
+- id: static-on-ec2
+  conceptId: static-site-delivery
+  tone: bad
+  headline: 文章と写真だけのサイトに、サーバー1台分の費用を払い続けていた
+  explanation: Amazon S3 で静的ウェブサイトをホストできます。静的なコンテンツだけのサイトは、サーバーを立てずに配信できます。
+  examPoint: 「低コスト」「静的サイト」の組み合わせで EC2 を選ばせる選択肢は、誤答として置かれる。
+  ticket: { kind: billing, voice: '請求書を見ました。ブログの収入より、サーバー代のほうが高いんですが…' }
+  sources:
+    - { title: 'Hosting a static website using Amazon S3', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
+- id: s3-lifecycle
+  conceptId: s3-storage-classes
+  tone: good
+  headline: 古い写真が低コストのストレージクラスへ移り、保存料の伸びを抑えられた
+  explanation: S3 ライフサイクルは、オブジェクトをより低コストのストレージクラスへ移行したり、期限切れのオブジェクトを削除したりして、費用を抑えて保存するのに役立ちます。S3 標準 – IA は、長く保存し、アクセス頻度の低いデータ向けのストレージクラスです。たとえば「作成から30日後に S3 標準 – IA へ移行する」というルールを書けます。
+  examPoint: 「古いデータはほとんどアクセスされない」「保存コストを下げたい」には、S3 ライフサイクルで低頻度アクセス向けのストレージクラスへ移行。
+  sources:
+    - { title: 'Managing the lifecycle of objects', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html', checkedAt: '2026-11-16' }
+    - { title: 'Understanding and managing Amazon S3 storage classes', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
+- id: s3-no-lifecycle
+  conceptId: s3-storage-classes
+  tone: bad
+  headline: ほとんど見られない古い写真まで、同じ保存料を払い続けていた
+  explanation: S3 ライフサイクルを使うと、オブジェクトをより低コストのストレージクラスへ自動で移行できます。S3 標準 – IA は、長く保存し、アクセス頻度の低いデータ向けです。ルールがなければ、古いデータもそのままのストレージクラスに残ります。
+  examPoint: アクセス頻度が下がるデータには、ライフサイクルルールでストレージクラスを移行する。手作業で移す選択肢は「運用負荷」の面で不利。
+  ticket: { kind: billing, voice: '写真が増えるたびに請求が上がっています。昔の旅の写真なんて、もう誰も見ていないのに' }
+  sources:
+    - { title: 'Managing the lifecycle of objects', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html', checkedAt: '2026-11-16' }
+    - { title: 'Understanding and managing Amazon S3 storage classes', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
