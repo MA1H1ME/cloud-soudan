@@ -117,3 +117,25 @@ describe('決定性', () => {
     expect(run(3, bp())).toEqual(run(3, bp()));
   });
 });
+
+describe('氷室さん：セキュリティ最優先', () => {
+  const h = simCustomerSchema.parse(parse(readFileSync(join(dir, 'sim/himuro.yaml'), 'utf8')));
+  const runH = (n: number, b: Blueprint) => runMonth(h.profitPerVisit, h.months.find((m) => m.month === n)!, b);
+  it('前の業者の構成のままだと、検査結果が漏れ、審査でも指摘される', () => {
+    const r = runH(1, h.start);
+    expect(ids(r)).toEqual(expect.arrayContaining(['s3-public-leak', 'cred-access-key']));
+    expect(r.kpi.security).toBe(false);
+  });
+  it('非公開＋絞ったロールなら◎。フルアクセスのロールは指摘を受ける', () => {
+    const fixed = { ...h.start, s3Public: false, credential: 'role-scoped' as const };
+    const r = runH(1, fixed);
+    expect(r.grade).toBe('best');
+    expect(ids(r)).toEqual(expect.arrayContaining(['s3-presigned-private', 'cred-role-scoped']));
+    expect(ids(runH(1, { ...fixed, credential: 'role-full' }))).toContain('cred-role-broad');
+  });
+  it('2か月目・3か月目は、可用性と性能も整えると◎', () => {
+    const full = { ...h.start, s3Public: false, credential: 'role-scoped' as const, autoScaling: true, slots: { ...h.start.slots, public: 'alb' as const, 'app-c': 'ec2' as const, 'data-c': 'rds-standby' as const } };
+    expect(runH(2, full).grade).toBe('best');
+    expect(runH(3, full).grade).toBe('best');
+  });
+});

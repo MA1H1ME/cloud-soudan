@@ -3,6 +3,9 @@
 customerId: kashiwagi
 profitPerVisit: 8
 contractFee: 30000
+priority: cost
+request:
+  pitch: 甥が作ってくれた通販サイトを、これからはプロに見てほしいんです。予算は月3万円まで。
 start:
   slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }
   backup: false

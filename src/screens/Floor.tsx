@@ -6,18 +6,19 @@ import { go } from '../router';
 import { DAYS, type MonthResult } from '../sim/engine';
 import type { Blueprint, PartType } from '../sim/schema';
 import { ticketsFrom } from '../sim/tickets';
-import { customerSave, dueSpots, pastResults, planFor, runningResult, SPOT_REWARD, useSave } from '../store';
+import { customerSave, dueSpots, pendingRequests, pastResults, planFor, runningResult, SPOT_REWARD, useSave } from '../store';
 import { spotById } from '../content';
 import { Desk, MONO, Person, PX, Tiles } from '../components/pixel';
 import { yen } from '../components/ui';
 
-const MAIN = 'kashiwagi';
+const PRIORITY_LABELS = { security: 'セキュリティ', reliability: '止まらないこと', performance: '速さ', cost: 'コスト' } as const;
+
 const SECONDS_PER_DAY = 0.5;
 const W = 288, H = 300;
 const RACKS = [
-  { id: 'akari', x: 16 },
-  { id: 'kashiwagi', x: 116 },
-  { id: 'himuro', x: 216 },
+  { id: 'kashiwagi', x: 16 },
+  { id: 'himuro', x: 116 },
+  { id: 'akari', x: 216 },
 ];
 const SHORT: Record<PartType, string> = { alb: 'ALB', ec2: 'EC2', rds: 'RDS', 'rds-standby': 'STBY', 'rds-replica': 'RPLC' };
 
@@ -42,6 +43,7 @@ function rackItems(bp: Blueprint, result: MonthResult | undefined, day: number):
 export function Floor() {
   const state = useSave();
   const company = state.company;
+  const MAIN = state.active ?? '';
   const sim = simByCustomer.get(MAIN);
   const save = customerSave(state, MAIN);
   const [speed, setSpeed] = useState(0);
@@ -75,7 +77,29 @@ export function Floor() {
   useEffect(() => {
     if (!company) go({ name: 'title' });
   }, [company]);
-  if (!company || !sim || !save) return null;
+  if (!company) return null;
+  const requests = pendingRequests(state);
+  const requestCards = requests.map((r) => {
+    const c = customerById.get(r.customerId);
+    return (
+      <section key={r.customerId} className="space-y-2 border-2 border-yellow-300 px-3 py-3 text-white" style={{ background: PX.box }}>
+        <p className="text-xs font-bold text-yellow-300">新しい依頼：{c?.name}（{c?.business}）</p>
+        <p className="text-sm leading-relaxed">{r.request.pitch}</p>
+        <p className="text-[11px] text-slate-300">契約料 月 {yen(r.contractFee)}・最優先：{PRIORITY_LABELS[r.priority]}</p>
+        <button type="button" onClick={() => { setSpeed(0); state.accept(r.customerId); }} className="w-full py-2 font-bold text-white" style={{ background: '#0f766e' }}>この依頼を受ける</button>
+      </section>
+    );
+  });
+  if (!sim || !save) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-3 bg-slate-900 px-3 py-3">
+        <p className="text-sm text-white" style={{ fontFamily: MONO }}>{company.name}　<span className="text-yellow-300">{yen(company.cash)}</span></p>
+        <p className="text-sm text-slate-300">事務所を開いたばかりです。最初の依頼が届いています。</p>
+        {requestCards}
+        {content.sim.length === 0 && <p className="text-xs text-slate-400">公開できる内容がまだありません。</p>}
+      </div>
+    );
+  }
 
   const name = customerById.get(MAIN)?.name ?? MAIN;
   const past = pastResults(sim, save);
@@ -87,7 +111,11 @@ export function Floor() {
   const trouble = result && day > 0 && (result.up[todayIdx]! < 1 || result.load[todayIdx]! > result.cap[todayIdx]!);
   const earnedToday = result && day > 0 ? result.earnedByDay[todayIdx]! : 0;
   const monthEarned = result ? result.earnedByDay.slice(0, day).reduce((a, b) => a + b, 0) : 0;
-  const stars = Math.min(5, 1 + past.filter((p) => p.result.grade === 'best').length);
+  const allBest = state.accepted.flatMap((id) => {
+    const sm = simByCustomer.get(id), sv = customerSave(state, id);
+    return sm && sv ? pastResults(sm, sv).filter((p) => p.result.grade === 'best') : [];
+  }).length;
+  const stars = Math.min(5, 1 + Math.floor(allBest / 2));
   const before = !save.running;
   const inCase = save.phase !== 'operate';
   const finished = !plan;
@@ -121,21 +149,23 @@ export function Floor() {
 
           {RACKS.map((r) => {
             const active = r.id === MAIN;
-            const items = active ? rackItems(save.running ?? save.blueprint, result, day) : [];
+            const otherSave = !active && state.accepted.includes(r.id) ? customerSave(state, r.id) : undefined;
+            const items = active ? rackItems(save.running ?? save.blueprint, result, day) : otherSave ? rackItems(otherSave.running ?? otherSave.blueprint, undefined, 0) : [];
+            const switchTo = otherSave ? () => { setSpeed(0); state.setActive(r.id); } : undefined;
             const label = customerById.get(r.id)?.name.split(' ')[0] ?? r.id;
             const hot = active && trouble;
             return (
               <g
                 key={r.id}
-                role={active ? 'button' : undefined}
-                tabIndex={active ? 0 : undefined}
-                aria-label={active ? `${name}さんのラック（設計図を開く）` : `${label}さんのラック（準備中）`}
-                onClick={active ? () => go({ name: 'blueprint', customerId: MAIN }) : undefined}
+                role={active || switchTo ? 'button' : undefined}
+                tabIndex={active || switchTo ? 0 : undefined}
+                aria-label={active ? `${name}さんのラック（設計図を開く）` : switchTo ? `${label}さんのラック（担当を切り替える）` : `${label}さんのラック（準備中）`}
+                onClick={active ? () => go({ name: 'blueprint', customerId: MAIN }) : switchTo}
                 onKeyDown={active ? (e) => e.key === 'Enter' && go({ name: 'blueprint', customerId: MAIN }) : undefined}
-                style={{ cursor: active ? 'pointer' : undefined }}
+                style={{ cursor: active || switchTo ? 'pointer' : undefined }}
               >
                 {hot && <rect x={r.x - 4} y="136" width="64" height="104" fill={PX.r} fillOpacity="0.35" className="blink" />}
-                <rect x={r.x} y="140" width="56" height="96" fill={PX.rack} opacity={active ? 1 : 0.5} />
+                <rect x={r.x} y="140" width="56" height="96" fill={PX.rack} opacity={active ? 1 : otherSave ? 0.8 : 0.5} stroke={active ? PX.y : undefined} strokeWidth="2" />
                 {items.map((it, k) => (
                   <g key={k}>
                     <rect x={r.x + 4} y={146 + k * 18} width="48" height="15" fill={PX.slot} />
@@ -143,7 +173,7 @@ export function Floor() {
                     <rect x={r.x + 44} y={151 + k * 18} width="4" height="4" fill={PX[it.led]} className={it.led === 'r' ? 'blink' : undefined} />
                   </g>
                 ))}
-                {!active && <text x={r.x + 28} y="192" textAnchor="middle" fontSize="9" fill={PX.smoke}>準備中</text>}
+                {!active && !otherSave && <text x={r.x + 28} y="192" textAnchor="middle" fontSize="9" fill={PX.smoke}>{simByCustomer.has(r.id) ? '依頼待ち' : '準備中'}</text>}
                 <text x={r.x + 28} y="254" textAnchor="middle" fontSize="11" fontWeight={active ? 700 : 400} fill={hot ? PX.r : PX.w}>{label}</text>
                 {hot && (
                   <g>
@@ -184,6 +214,7 @@ export function Floor() {
           })}
         </section>
       )}
+      {speed === 0 && requestCards}
       {before && plan && (
         <section className="space-y-2 border-t-2 border-white px-3 py-3 text-white" style={{ background: PX.box }}>
           <p className="text-xs font-bold text-yellow-300">☎ {name}さん（{save.month}か月目）</p>

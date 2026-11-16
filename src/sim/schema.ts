@@ -16,10 +16,12 @@ export const blueprintSchema = z.object({
   autoScaling: z.boolean(),
   dbPublic: z.boolean().default(false), // データベースのパブリックアクセス
   dbSgOpen: z.boolean().default(false), // セキュリティグループがどこからでも接続を許可している
+  s3Public: z.boolean().default(false), // ファイル用バケットを公開している
+  credential: z.enum(['access-key', 'role-full', 'role-scoped']).default('role-scoped'), // アプリ（EC2）がS3を使うための権限の渡し方
 });
 export type Blueprint = z.infer<typeof blueprintSchema>;
 
-export const eventTypeSchema = z.enum(['spike', 'db-failure', 'az-outage', 'probe']);
+export const eventTypeSchema = z.enum(['spike', 'db-failure', 'az-outage', 'probe', 'bucket-probe', 'audit']);
 export type EventType = z.infer<typeof eventTypeSchema>;
 
 export const monthPlanSchema = z.object({
@@ -40,7 +42,7 @@ export const monthPlanSchema = z.object({
 });
 export type MonthPlan = z.infer<typeof monthPlanSchema>;
 
-export const checkTypeSchema = z.enum(['budget', 'data', 'downtime', 'peak', 'secure-db']);
+export const checkTypeSchema = z.enum(['budget', 'data', 'downtime', 'peak', 'secure-db', 's3-private', 'no-keys', 'least-privilege']);
 export type CheckType = z.infer<typeof checkTypeSchema>;
 
 // ヒアリング：用意した質問から選んで聞き、要件メモを埋める。会話は事前に作成したものだけ。
@@ -64,6 +66,9 @@ export const simCustomerSchema = z.object({
   customerId: z.string().min(1),
   profitPerVisit: z.number().min(0), // 1訪問あたりのもうけ（ゲーム内の値）
   contractFee: z.number().min(0).default(30000), // 自社に入る月の契約料（ゲーム内の値）
+  priority: z.enum(['security', 'reliability', 'performance', 'cost']), // このお客さんが最も大事にする観点
+  features: z.array(z.enum(['files'])).default([]), // 'files'：S3でファイルを配る。構築画面に S3 と IAM が出る
+  request: z.object({ pitch: z.string().min(1), after: z.object({ customerId: z.string(), month: z.number().int() }).optional() }),
   start: blueprintSchema,
   hearing: hearingSchema.optional(),
   months: z.array(monthPlanSchema).min(1),

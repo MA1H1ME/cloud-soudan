@@ -35,6 +35,13 @@ export interface Company { name: string; cash: number }
 interface SaveState {
   company: Company | null;
   customers: Record<string, CustomerSave>;
+  /** 依頼を受けたお客さん */
+  accepted: string[];
+  /** フロアで担当中のお客さん */
+  active: string | null;
+  accept: (customerId: string) => void;
+  setActive: (customerId: string) => void;
+  setCredential: (customerId: string, value: Blueprint['credential']) => void;
   /** conceptId → 復習の状態（忘却曲線に沿って間隔を広げる） */
   review: Record<string, ReviewItem>;
   /** これまでに出会ったルール */
@@ -42,7 +49,7 @@ interface SaveState {
   answerSpot: (spotId: string, passed: boolean, firedRuleIds: string[], practice: boolean) => void;
   newGame: (name: string) => void;
   setSlot: (customerId: string, slot: Slot, part: PartType | null) => void;
-  setSetting: (customerId: string, key: 'backup' | 'autoScaling' | 'dbPublic' | 'dbSgOpen', value: boolean) => void;
+  setSetting: (customerId: string, key: 'backup' | 'autoScaling' | 'dbPublic' | 'dbSgOpen' | 's3Public', value: boolean) => void;
   ask: (customerId: string, questionId: string) => void;
   setPhase: (customerId: string, phase: Phase) => void;
   startMonth: (customerId: string) => void;
@@ -56,7 +63,11 @@ function initial(sim: SimCustomer): CustomerSave {
 
 export function customerSave(state: Pick<SaveState, 'customers'>, customerId: string): CustomerSave | undefined {
   const sim = simByCustomer.get(customerId);
-  return sim ? (state.customers[customerId] ?? initial(sim)) : undefined;
+  if (!sim) return undefined;
+  const saved = state.customers[customerId];
+  if (!saved) return initial(sim);
+  // 設定項目が増えたとき、古いセーブには初期値を補う
+  return { ...saved, blueprint: { ...sim.start, ...saved.blueprint }, running: saved.running ? { ...sim.start, ...saved.running } : null };
 }
 
 export const useSave = create<SaveState>()(
@@ -69,9 +80,14 @@ export const useSave = create<SaveState>()(
       return {
         company: null,
         customers: {},
+        accepted: [],
+        active: null,
+        accept: (customerId) => set({ accepted: [...new Set([...get().accepted, customerId])], active: customerId }),
+        setActive: (customerId) => get().accepted.includes(customerId) && set({ active: customerId }),
+        setCredential: (customerId, value) => update(customerId, (c) => (c.running ? c : { ...c, blueprint: { ...c.blueprint, credential: value } })),
         review: {},
         seenRules: [],
-        newGame: (name) => set({ company: { name, cash: START_CASH }, customers: {}, review: {}, seenRules: [] }),
+        newGame: (name) => set({ company: { name, cash: START_CASH }, customers: {}, accepted: [], active: null, review: {}, seenRules: [] }),
         answerSpot: (spotId, passed, firedRuleIds, practice) => {
           const spot = content.spots.find((x) => x.id === spotId);
           const st = get();
@@ -136,7 +152,12 @@ export const useSave = create<SaveState>()(
         },
       };
     },
-    { name: 'cloud-soudan-company-2', version: 2, migrate: (old) => ({ review: {}, seenRules: [], ...(old as object) }) },
+    { name: 'cloud-soudan-company-2', version: 3,
+      migrate: (old) => {
+        const o = old as { customers?: Record<string, unknown> };
+        const had = Object.keys(o.customers ?? {});
+        return { review: {}, seenRules: [], accepted: had, active: had[0] ?? null, ...o };
+      }, },
   ),
 );
 
@@ -165,5 +186,16 @@ export function dueSpots(state: Pick<SaveState, 'review'>): string[] {
     const lastSeen = new Map(item.seen.map((x) => [x.scenarioId, x.seenOn]));
     const pick = candidates.find((x) => !lastSeen.has(x.id)) ?? [...candidates].sort((a, b) => (lastSeen.get(a.id) ?? '').localeCompare(lastSeen.get(b.id) ?? ''))[0];
     return pick ? [pick.id] : [];
+  });
+}
+
+/** まだ受けていない依頼（条件を満たして届いているもの） */
+export function pendingRequests(state: Pick<SaveState, 'customers' | 'accepted'>): SimCustomer[] {
+  return content.sim.filter((sim) => {
+    if (state.accepted.includes(sim.customerId)) return false;
+    const after = sim.request.after;
+    if (!after) return true;
+    const other = customerSave(state, after.customerId);
+    return state.accepted.includes(after.customerId) && Boolean(other && other.month > after.month);
   });
 }

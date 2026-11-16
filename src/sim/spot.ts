@@ -10,6 +10,8 @@ const patchSchema = z.object({
   autoScaling: z.boolean().optional(),
   dbPublic: z.boolean().optional(),
   dbSgOpen: z.boolean().optional(),
+  s3Public: z.boolean().optional(),
+  credential: z.enum(['access-key', 'role-full', 'role-scoped']).optional(),
 });
 
 export const spotSchema = z.object({
@@ -22,6 +24,7 @@ export const spotSchema = z.object({
   profitPerVisit: z.number().default(8),
   plan: monthPlanSchema.omit({ month: true, brief: true }),
   start: blueprintSchema,
+  files: z.boolean().default(false), // S3でファイルを配る構成か（画面の表示用）
   avoid: z.array(z.string()).default([]), // 発動したら不合格になるルール
   options: z.array(z.object({ id: z.string().min(1), label: z.string().min(1), patch: patchSchema })).min(2).max(4),
 });

@@ -14,6 +14,7 @@ export const RULE_IDS = [
   'web-single-overload', 'web-fixed-overload', 'asg-scale-out', 'web-alb-spread',
   'web-single-az-outage', 'web-multi-az-survive', 'web-second-without-alb', 'alb-single-ec2',
   'db-exposed', 'db-private',
+  's3-public-leak', 's3-presigned-private', 'cred-access-key', 'cred-role-broad', 'cred-role-scoped',
 ] as const;
 export type RuleId = (typeof RULE_IDS)[number];
 
@@ -87,6 +88,23 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint)
   for (const ev of events) {
     if (ev.type === 'spike') {
       for (let i = ev.day - 1; i < Math.min(DAYS, ev.day - 1 + (ev.days ?? 2)); i++) load[i] = load[i]! * (ev.factor ?? 2);
+      continue;
+    }
+    if (ev.type === 'bucket-probe') {
+      if (bp.s3Public) {
+        breached = true;
+        fire('s3-public-leak', ev.day, ev.label);
+        penalty += 5 * profitPerVisit * plan.visitsPerDay;
+      } else fire('s3-presigned-private', ev.day, ev.label);
+      continue;
+    }
+    if (ev.type === 'audit') {
+      if (bp.credential === 'access-key') {
+        breached = true; // 審査で重大な指摘を受けた
+        fire('cred-access-key', ev.day, ev.label);
+        penalty += 3 * profitPerVisit * plan.visitsPerDay;
+      } else if (bp.credential === 'role-full') fire('cred-role-broad', ev.day, ev.label);
+      else fire('cred-role-scoped', ev.day, ev.label);
       continue;
     }
     if (ev.type === 'probe') {

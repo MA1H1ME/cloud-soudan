@@ -33,6 +33,18 @@ function judge(check: CheckType, bp: Blueprint, plan: MonthPlan, profitPerVisit:
         ? { ok: true, detail: `ピークの日も含め、重くなる日は${r.slowDays}日の見込みです` }
         : { ok: false, detail: `処理能力が足りず、重くなる日が${r.slowDays}日ある見込みです` };
     }
+    case 's3-private':
+      return bp.s3Public
+        ? { ok: false, detail: 'バケットが公開されていて、URLを知っていれば誰でもファイルを開けます' }
+        : { ok: true, detail: 'バケットは非公開。本人には期限つきの署名付きURLで渡します' };
+    case 'no-keys':
+      return bp.credential === 'access-key'
+        ? { ok: false, detail: 'サーバーの設定ファイルに、IAMユーザーのアクセスキーが保存されています' }
+        : { ok: true, detail: 'EC2 に IAM ロールを割り当てていて、アクセスキーは保存していません' };
+    case 'least-privilege':
+      return bp.credential === 'role-scoped'
+        ? { ok: true, detail: '権限は、検査結果のバケットへの必要な操作だけです' }
+        : { ok: false, detail: bp.credential === 'role-full' ? 'ロールに S3 のフルアクセスが付いていて、関係のないバケットにも届きます' : 'アクセスキーに広い権限が付いています' };
     case 'secure-db':
       return dbExposed(bp)
         ? { ok: false, detail: 'パブリックアクセスが有効で、セキュリティグループが 0.0.0.0/0 からの接続を許可しています' }

@@ -4,6 +4,8 @@ import { StepBar } from '../components/StepBar';
 import { PrimaryButton, Screen } from '../components/ui';
 import { go } from '../router';
 import { verify } from '../sim/verify';
+import { radarScores } from '../sim/radar';
+import { Radar } from '../components/Radar';
 import { customerSave, planFor, useSave } from '../store';
 
 const STYLE = {
@@ -42,6 +44,7 @@ export function Verify({ customerId }: { customerId: string }) {
       }
     >
       <StepBar customerId={customerId} current="verify" />
+      <Radar scores={radarScores(save.blueprint, plan, sim.features.includes('files'))} priority={sim.priority} />
       <ul className="space-y-2">
         {checks.map((c) => {
           const st = STYLE[c.status];

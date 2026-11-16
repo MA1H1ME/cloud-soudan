@@ -144,3 +144,54 @@
     - { title: 'Security group rules', url: 'https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html', checkedAt: '2026-11-16' }
     - { title: 'Working with a DB instance in a VPC', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html', checkedAt: '2026-11-16' }
   review: { status: verified, verifiedAt: '2026-11-16' }
+- id: s3-public-leak
+  conceptId: s3-private-access
+  tone: bad
+  headline: 公開したバケットのURLが出回り、検査結果を誰でも開ける状態になっていた
+  explanation: Amazon S3 の新しいバケットとオブジェクトは、デフォルトでは公開されません。S3 ブロックパブリックアクセスは、ポリシーやアクセス許可の設定より優先して、公開を制限します。公開したバケットでは、URLが推測しにくくても、アクセスを制御していることにはなりません。
+  examPoint: 「特定の人にだけ」「一時的に」ファイルを渡す要件で、バケットを公開する選択肢は誤答。ブロックパブリックアクセスは有効のままにする。
+  ticket: { kind: security, voice: '検査結果のURLが外部に出回っていると、クリニックから連絡がありました' }
+  sources:
+    - { title: 'Blocking public access to your Amazon S3 storage', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
+- id: s3-presigned-private
+  conceptId: s3-private-access
+  tone: good
+  headline: バケットは非公開で、期限の切れたURLでは何も開けなかった
+  explanation: S3 のオブジェクトはデフォルトで非公開です。署名付きURLを使うと、バケットポリシーを変えずに、期限つきでオブジェクトへのアクセスを許可できます。署名付きURLは、設定した有効期限か、発行に使った認証情報の期限の、早いほうで失効します。
+  examPoint: 「バケットは非公開のまま」「期限つきで」「特定のオブジェクトだけ」と書かれていたら、署名付きURL。
+  sources:
+    - { title: 'Sharing objects with presigned URLs', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html', checkedAt: '2026-11-16' }
+    - { title: 'Download and upload objects with presigned URLs', url: 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
+- id: cred-access-key
+  conceptId: ec2-iam-role
+  tone: bad
+  headline: サーバーに保存したアクセスキーを審査で指摘され、導入が延期になった
+  explanation: AWS上で動くアプリケーションには、IAMロールの一時的な認証情報を使わせます。EC2 では、IAMロールの一時的な認証情報がインスタンスに渡されるので、IAMユーザーの長期の認証情報を配る必要がありません。認証情報を各インスタンスに安全に配り、更新のたびに入れ替えるのは難しい作業です。
+  examPoint: 「EC2上のアプリからAWSのサービスを使う」にはIAMロール。アクセスキーをサーバーやコードに置く選択肢は誤答として置かれる。
+  ticket: { kind: security, voice: '審査で、サーバーに置いたアクセスキーを指摘されました。導入が1件延期です' }
+  sources:
+    - { title: 'IAM roles for Amazon EC2', url: 'https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html', checkedAt: '2026-11-16' }
+    - { title: 'Security best practices in IAM', url: 'https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
+- id: cred-role-broad
+  conceptId: ec2-iam-role
+  tone: bad
+  headline: ロールの権限が広すぎると審査で指摘され、修正を約束した
+  explanation: IAMポリシーで権限を設定するときは、作業に必要な権限だけを与えます（最小権限）。必要以上に広い権限は、侵入されたときに届く範囲を広げます。
+  examPoint: 「最小権限」が問われたら、必要なリソースと操作だけを許可するポリシーを選ぶ。フルアクセスは誤答になりやすい。
+  ticket: { kind: security, voice: 'キーがないのは評価されましたが、権限が広すぎると言われました' }
+  sources:
+    - { title: 'Security best practices in IAM', url: 'https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
+- id: cred-role-scoped
+  conceptId: ec2-iam-role
+  tone: good
+  headline: キーを置かず、権限も必要な分だけ。審査をそのまま通過した
+  explanation: EC2 に IAMロールを割り当てると、アプリケーションは一時的な認証情報を受け取って使えます。権限は、作業に必要な分だけを与えます（最小権限）。
+  examPoint: IAMロール＋最小権限のポリシーの組み合わせが、EC2上のアプリに権限を渡す基本。
+  sources:
+    - { title: 'IAM roles for Amazon EC2', url: 'https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html', checkedAt: '2026-11-16' }
+    - { title: 'Security best practices in IAM', url: 'https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
