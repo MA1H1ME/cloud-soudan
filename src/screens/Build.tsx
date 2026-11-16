@@ -8,10 +8,11 @@ import { go } from '../router';
 import { fixedCost } from '../sim/engine';
 import { customerSave, planFor, useSave } from '../store';
 
+// 「情報」の説明文。content/rules.yaml と同じ公式ドキュメントと照合済み（2026-11-16）。
 const HELP = {
-  az: 'マルチ AZ DB インスタンスは、別のアベイラビリティーゾーンに待機系（スタンバイ）を持ちます。本体に障害が起きると、自動で待機系に切り替わります。待機系の分だけ料金が増えます。',
-  conn: 'パブリックアクセスを「なし」にすると、データベースはVPCの外から接続できません。セキュリティグループでは、接続を許可する相手を指定します。IPアドレスの範囲のほかに、別のセキュリティグループも指定できます。',
-  backup: '自動バックアップを有効にすると、保持期間内の時点にデータベースを復元できます。復元は新しいデータベースを作る作業で、その間は止まります。',
+  az: 'マルチ AZ DB インスタンスでは、別のアベイラビリティーゾーンに待機系（スタンバイ）が置かれ、本体から同期的に複製されます。本体に障害が起きると、自動で待機系に切り替わります。待機系を読み取りに使うことはできません。',
+  conn: 'パブリックアクセスを「あり」にすると、インターネットから届くパブリックIPアドレスが割り当てられます。セキュリティグループのルールは、届く通信を制御します。接続元には、IPアドレスの範囲のほかに、別のセキュリティグループも指定できます。',
+  backup: '自動バックアップを有効にすると、保持期間内の任意の時点にデータベースを復元できます。復元では、新しいDBインスタンスが作られます。保持期間を0にすると、自動バックアップは無効になります。',
 };
 
 function Section({ title, summary, help, children }: { title: string; summary: string; help: string; children: ReactNode }) {
@@ -26,7 +27,7 @@ function Section({ title, summary, help, children }: { title: string; summary: s
         </button>
         <button type="button" onClick={() => setInfo(!info)} aria-expanded={info} className="text-xs text-cyan-700 underline">情報</button>
       </div>
-      {info && <p className="border-t border-slate-200 bg-cyan-50 px-3 py-2 text-xs leading-relaxed text-slate-800">{help}<span className="mt-1 block text-[10px] text-slate-500">下書き（公式ドキュメントとの照合前）</span></p>}
+      {info && <p className="border-t border-slate-200 bg-cyan-50 px-3 py-2 text-xs leading-relaxed text-slate-800">{help}</p>}
       {open && <div className="space-y-2 border-t border-slate-200 px-3 py-3 text-sm">{children}</div>}
     </section>
   );

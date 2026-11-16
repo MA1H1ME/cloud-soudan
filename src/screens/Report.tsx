@@ -1,6 +1,7 @@
 // 月次レポート：目標の達成度、収支、発動したルールの解説。学習の本体。
 import { customerById, ruleById, simByCustomer } from '../content';
 import { GRADE_TEXT, PrimaryButton, Screen, Stamp, Voice, pct, yen } from '../components/ui';
+import { RuleSources } from '../components/RuleSources';
 import { go } from '../router';
 import { SLOW_DAYS_ALLOWED } from '../sim/parts';
 import { BEST_BONUS, customerSave, planFor, runningResult, useSave } from '../store';
@@ -71,7 +72,7 @@ export function Report({ customerId }: { customerId: string }) {
                 <p className="font-bold text-slate-900"><span className={good ? 'text-emerald-700' : 'text-red-700'}>{good ? '＋' : '−'}</span> {rule.headline}</p>
                 <p className="mt-1 text-slate-800">{rule.explanation}</p>
                 <p className="mt-1 rounded bg-slate-100 px-2 py-1 text-xs text-slate-700"><b>試験では：</b>{rule.examPoint}</p>
-                {rule.review.status === 'draft' && <p className="mt-1 text-[11px] text-slate-400">下書き（公式ドキュメントとの照合前）</p>}
+                <RuleSources rule={rule} />
               </li>
             );
           })}

@@ -1,109 +1,146 @@
 # ルール＝知識の単位。「構成のパターン × 出来事 → 何が起きるか」。仕様書16章
-# すべて下書き（公式ドキュメントとは未照合）。照合したら sources と review を埋める。
+# explanation の記述は sources の公式ドキュメントと照合済み。examPoint は試験対策の助言で、照合の対象外。
+# 金額・日数など、ゲーム内の値はここには書かない。
 - id: db-multi-az
   conceptId: rds-multiaz-vs-read-replica
   tone: good
   headline: 待機系に自動で切り替わり、ほとんど止まらなかった
-  explanation: マルチAZ配置では、別のAZにある待機系へ同期的に複製しています。本体に障害が起きると、自動で待機系に切り替わります。
-  examPoint: 「高可用性」「自動フェイルオーバー」と書かれていたら、RDSのマルチAZ配置。
-  review: { status: draft }
+  explanation: マルチAZ配置では、別のアベイラビリティーゾーンに待機系（スタンバイ）が置かれ、本体から同期的に複製されます。本体に障害が起きると、自動で待機系に切り替わります。切り替えにかかる時間は、通常60〜120秒です。待機系を読み取りに使うことはできません。
+  examPoint: 「高可用性」「自動フェイルオーバー」と書かれていたら、RDSのマルチAZ配置。読み取り性能を上げる目的では使えない。
+  sources:
+    - { title: 'Multi-AZ DB instance deployments for Amazon RDS', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html', checkedAt: '2026-11-16' }
+    - { title: 'Failing over a Multi-AZ DB instance for Amazon RDS', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.Failover.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: db-replica-manual
   conceptId: rds-multiaz-vs-read-replica
   tone: bad
   headline: リードレプリカは自動では切り替わらず、手動で昇格させるまで止まった
-  explanation: リードレプリカは読み取りの負荷を分散するためのもので、複製は非同期です。本体が止まっても自動では切り替わらず、昇格は手動の操作になります。
-  examPoint: 可用性を上げる目的でリードレプリカを選ばせる選択肢は、誤答として置かれる。
-  ticket: { kind: incident, voice: 予備のデータベースがあるのに、どうして止まったんですか？ }
-  review: { status: draft }
+  explanation: リードレプリカは、読み取りの多い負荷を分散するためのものです。本体の更新は非同期でレプリカに複製されます。本体が止まったときに復旧に使うこともできますが、その場合は自分でレプリカを昇格させ、接続先を切り替える必要があります。
+  examPoint: 可用性を上げる目的でリードレプリカを選ばせる選択肢は、誤答として置かれる。自動で切り替わるのはマルチAZ配置。
+  ticket: { kind: incident, voice: '予備のデータベースがあるのに、どうして止まったんですか？' }
+  sources:
+    - { title: 'Working with DB instance read replicas', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html', checkedAt: '2026-11-16' }
+    - { title: 'Promoting a read replica to be a standalone DB instance', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.Promote.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: db-single-backup
   conceptId: rds-backup-restore
   tone: bad
   headline: バックアップからの復元が終わるまで、サイトが止まった
-  explanation: 自動バックアップがあれば、記録を失わずに復元できます。ただし復元は新しいデータベースを作り直す作業で、その間は止まります。バックアップは「記録」を守りますが、「止まらないこと」は守りません。
+  explanation: 自動バックアップがあれば、保持期間内の任意の時点にデータベースを復元できます。ただし復元では、新しいDBインスタンスが作られます。バックアップは記録を守る仕組みで、障害の間も動かし続ける仕組みではありません。
   examPoint: 「データを失わない」はバックアップ、「止まらない」はマルチAZ。求められているのがどちらかを読み分ける。
-  ticket: { kind: incident, voice: 先月、半日ほど注文が取れませんでした。記録は無事でしたが… }
-  review: { status: draft }
+  ticket: { kind: incident, voice: '先月、半日ほど注文が取れませんでした。記録は無事でしたが…' }
+  sources:
+    - { title: 'Introduction to backups', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html', checkedAt: '2026-11-16' }
+    - { title: 'Restoring a DB instance to a specified time for Amazon RDS', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PIT.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: db-no-backup
   conceptId: rds-backup-restore
   tone: bad
   headline: バックアップがなく、注文の記録を失った
-  explanation: 自動バックアップを切っていると、障害のときに戻せる時点がありません。止まるだけでなく、記録そのものを失います。
+  explanation: バックアップ保持期間を0にすると、自動バックアップは無効になります。自動バックアップがなければ、障害のときに戻せる時点がありません。
   examPoint: データを守る要件があるのに、バックアップのない構成は選べない。
-  ticket: { kind: incident, voice: 注文の記録が消えました。お客さん一人ひとりに連絡して謝っています }
-  review: { status: draft }
+  ticket: { kind: incident, voice: '注文の記録が消えました。お客さん一人ひとりに連絡して謝っています' }
+  sources:
+    - { title: 'Backup retention period', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.BackupRetention.html', checkedAt: '2026-11-16' }
+    - { title: 'Introduction to backups', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: web-single-overload
   conceptId: ec2-scaling-and-load-balancing
   tone: bad
   headline: サーバー1台では受けきれず、買えないお客さんが出た
-  explanation: 1台のサーバーには処理できる量の上限があります。台数を増やして振り分ける（ALB）か、負荷に応じて自動で台数を増やす（Auto Scaling）必要があります。
-  examPoint: 「アクセスが増えると遅くなる」には、ALBとAuto Scalingで横に増やす構成が基本。
-  ticket: { kind: performance, voice: セールのとき、重くて買えなかったという声が届いています }
-  review: { status: draft }
+  explanation: Elastic Load Balancing は、届いたアクセスを複数のサーバー（ターゲット）に自動で振り分けます。Amazon EC2 Auto Scaling は、負荷をさばくのに必要な台数のEC2インスタンスを保つ仕組みです。1台で受けきれないときは、この2つで横に増やします。
+  examPoint: 「アクセスが増えると遅くなる」には、ロードバランサーとAuto Scalingで台数を増やす構成が基本。
+  ticket: { kind: performance, voice: 'セールのとき、重くて買えなかったという声が届いています' }
+  sources:
+    - { title: 'What is Elastic Load Balancing?', url: 'https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/what-is-load-balancing.html', checkedAt: '2026-11-16' }
+    - { title: 'What is Amazon EC2 Auto Scaling?', url: 'https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: web-fixed-overload
   conceptId: ec2-scaling-and-load-balancing
   tone: bad
   headline: 台数が固定のままで、急なアクセス増に追いつけなかった
-  explanation: 台数を固定で増やしても、想定を超える急増には足りません。Auto Scalingなら、負荷が上がったときだけ台数を増やせます。
-  examPoint: 「予測できない急増」「必要なときだけ」と書かれていたら、Auto Scaling。
-  ticket: { kind: performance, voice: テレビの放送直後、サイトがつながりにくかったそうです }
-  review: { status: draft }
+  explanation: スケーリングポリシーを設定すると、Amazon EC2 Auto Scaling は需要の増減に合わせてインスタンスを起動・終了します。台数を固定で増やすだけでは、想定を超える急増には足りません。
+  examPoint: 「予測できない急増」「需要に合わせて」と書かれていたら、Auto Scaling。
+  ticket: { kind: performance, voice: 'テレビの放送直後、サイトがつながりにくかったそうです' }
+  sources:
+    - { title: 'What is Amazon EC2 Auto Scaling?', url: 'https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: asg-scale-out
   conceptId: ec2-scaling-and-load-balancing
   tone: good
   headline: Auto Scaling が台数を増やし、アクセス増をさばいた
-  explanation: Auto Scalingは負荷に応じてサーバーの台数を増減します。増えた分の料金は、動いていた間だけかかります。
-  examPoint: 常に多めの台数を用意するより、必要なときだけ増やすほうがコストを抑えられる。
-  review: { status: draft }
+  explanation: Amazon EC2 Auto Scaling は、需要が増えるとインスタンスを起動し、減ると終了します。最小・最大の台数を決めておけば、その範囲で台数が調整されます。Auto Scaling 自体に追加料金はかかりません。
+  examPoint: 常に多めの台数を用意するより、需要に合わせて増減させるほうがコストを抑えられる。
+  sources:
+    - { title: 'What is Amazon EC2 Auto Scaling?', url: 'https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: web-alb-spread
   conceptId: ec2-scaling-and-load-balancing
   tone: good
   headline: ALB が2台に振り分け、1台では受けきれない量をさばいた
-  explanation: ALBは届いたアクセスを複数のサーバーに振り分けます。1台あたりの負荷が下がり、全体でさばける量が増えます。
+  explanation: Elastic Load Balancing は、届いたアクセスを、1つ以上のアベイラビリティーゾーンにある複数のターゲットに自動で振り分けます。ロードバランサーを使うと、アプリケーションの可用性と耐障害性が上がります。
   examPoint: 複数のサーバーにアクセスを分散させる役割は、ロードバランサー。
-  review: { status: draft }
+  sources:
+    - { title: 'What is Elastic Load Balancing?', url: 'https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/what-is-load-balancing.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: web-single-az-outage
   conceptId: multi-az-web-tier
   tone: bad
   headline: サーバーが片方のAZにしかなく、AZの障害でサイトごと止まった
-  explanation: AZは独立した設備の単位です。すべてのサーバーを1つのAZに置くと、そのAZの障害で全体が止まります。2つ以上のAZに置き、ALBで振り分けます。
+  explanation: アベイラビリティーゾーンは、リージョン内の互いに分離された場所です。すべてのインスタンスを1つの場所に置くと、そこで障害が起きたときに全部が使えなくなります。複数のアベイラビリティーゾーンに置けば、1か所の障害からアプリケーションを守れます。
   examPoint: 「単一障害点をなくす」には、複数のAZへの配置とロードバランサーの組み合わせ。
-  ticket: { kind: incident, voice: 障害の間、サイトがまったく開きませんでした。止めないでほしいとお願いしたはずです }
-  review: { status: draft }
+  ticket: { kind: incident, voice: '障害の間、サイトがまったく開きませんでした。止めないでほしいとお願いしたはずです' }
+  sources:
+    - { title: 'Regions and Zones', url: 'https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: web-multi-az-survive
   conceptId: multi-az-web-tier
   tone: good
   headline: もう一方のAZのサーバーが受け続け、サイトは止まらなかった
-  explanation: サーバーを2つのAZに置き、ALBで振り分けていたので、片方のAZに障害が起きても、残ったAZのサーバーにアクセスが届きました。
+  explanation: Elastic Load Balancing は、登録されたターゲットの状態を監視し、正常なターゲットにだけアクセスを送ります。サーバーを2つのアベイラビリティーゾーンに置いていたので、片方に障害が起きても、残ったほうにアクセスが届きました。
   examPoint: Web層の高可用性は、複数のAZ＋ロードバランサー。
-  review: { status: draft }
+  sources:
+    - { title: 'What is Elastic Load Balancing?', url: 'https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/what-is-load-balancing.html', checkedAt: '2026-11-16' }
+    - { title: 'Regions and Zones', url: 'https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: web-second-without-alb
   conceptId: ec2-scaling-and-load-balancing
   tone: bad
   headline: 振り分ける装置がなく、2台目のサーバーは使われないまま料金だけかかった
-  explanation: サーバーを増やすだけでは、アクセスは2台目に届きません。前段にALBを置いて、はじめて振り分けられます。
+  explanation: アクセスを複数のサーバーに振り分けるのは、ロードバランサーの役割です。サーバーを増やすだけでは、アクセスは2台目に届きません。
   examPoint: サーバーを複数台にするときは、ロードバランサーとセットで考える。
-  ticket: { kind: billing, voice: サーバーを2台にしたと聞きましたが、速くなった気がしません。料金は増えていますよね？ }
-  review: { status: draft }
+  ticket: { kind: billing, voice: 'サーバーを2台にしたと聞きましたが、速くなった気がしません。料金は増えていますよね？' }
+  sources:
+    - { title: 'What is Elastic Load Balancing?', url: 'https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/what-is-load-balancing.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: alb-single-ec2
   conceptId: ec2-scaling-and-load-balancing
   tone: bad
   headline: ALB の後ろにサーバーが1台だけで、振り分ける相手がいなかった
-  explanation: ALBは複数のサーバーに振り分けるための装置です。後ろが1台だけで、Auto Scalingも使っていなければ、費用が増えるだけです。
+  explanation: ロードバランサーは、複数のターゲットにアクセスを振り分けるための仕組みです。後ろが1台だけで、Auto Scalingで増やす設定もなければ、役割を果たせません。
   examPoint: 部品は役割が生きる組み合わせで置く。使われない部品はコストになる。
-  ticket: { kind: billing, voice: 請求書に見慣れない項目が増えていました。これは何に効いているんでしょう？ }
-  review: { status: draft }
+  ticket: { kind: billing, voice: '請求書に見慣れない項目が増えていました。これは何に効いているんでしょう？' }
+  sources:
+    - { title: 'What is Elastic Load Balancing?', url: 'https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/what-is-load-balancing.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: db-exposed
   conceptId: rds-network-isolation
   tone: bad
   headline: データベースにインターネットから届く状態で、住所と電話番号が漏れた
-  explanation: パブリックアクセスを有効にし、セキュリティグループでどこからの接続も許可していると、データベースにインターネットから直接届きます。データベースはプライベートサブネットに置き、接続元をWebサーバーのセキュリティグループだけに絞ります。
-  examPoint: 「データベースはインターネットから到達できないこと」には、プライベートサブネットへの配置と、セキュリティグループで接続元を絞る構成。
-  ticket: { kind: security, voice: お客さんの住所と電話番号が漏れました。一軒ずつお詫びに回っています }
-  review: { status: draft }
+  explanation: パブリックアクセスを有効にしたDBインスタンスには、インターネットから届くパブリックIPアドレスが割り当てられます。そのうえセキュリティグループでどこからの接続も許可していると、インターネットから直接つながります。Webサーバーは公開し、データベースは公開しない構成が一般的です。
+  examPoint: 「データベースはインターネットから到達できないこと」には、パブリックアクセスを無効にし、セキュリティグループで接続元を絞る構成。
+  ticket: { kind: security, voice: 'お客さんの住所と電話番号が漏れました。一軒ずつお詫びに回っています' }
+  sources:
+    - { title: 'Working with a DB instance in a VPC', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html', checkedAt: '2026-11-16' }
+    - { title: 'Security group rules', url: 'https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }
 - id: db-private
   conceptId: rds-network-isolation
   tone: good
   headline: データベースには外から届かず、不審なアクセスは何も得られなかった
-  explanation: パブリックアクセスを無効にするか、セキュリティグループで接続元をWebサーバーだけに絞っていたので、インターネットからの接続は届きませんでした。両方とも閉じておくのが基本です。
-  examPoint: セキュリティグループの接続元には、IPアドレスの範囲だけでなく、別のセキュリティグループも指定できる。
-  review: { status: draft }
+  explanation: セキュリティグループのルールは、関連づけたリソースに届く通信を制御します。許可のルールだけを書け、接続元には別のセキュリティグループも指定できます。パブリックアクセスを無効にし、接続元をWebサーバーのセキュリティグループに絞るのが基本です。
+  examPoint: セキュリティグループは許可ルールのみ（拒否ルールは書けない）。接続元にセキュリティグループを指定できる点がよく問われる。
+  sources:
+    - { title: 'Security group rules', url: 'https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html', checkedAt: '2026-11-16' }
+    - { title: 'Working with a DB instance in a VPC', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html', checkedAt: '2026-11-16' }
+  review: { status: verified, verifiedAt: '2026-11-16' }

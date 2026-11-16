@@ -7,6 +7,8 @@ import { Report } from './screens/Report';
 import { Hearing } from './screens/Hearing';
 import { Build } from './screens/Build';
 import { Verify } from './screens/Verify';
+import { SpotScreen } from './screens/Spot';
+import { Record } from './screens/Record';
 
 export function App() {
   const route = useRoute();
@@ -15,6 +17,10 @@ export function App() {
       return <Opening />;
     case 'floor':
       return <Floor />;
+    case 'spot':
+      return <SpotScreen key={route.spotId} spotId={route.spotId} practice={route.practice} />;
+    case 'record':
+      return <Record />;
     case 'hearing':
       return <Hearing customerId={route.customerId} />;
     case 'build':

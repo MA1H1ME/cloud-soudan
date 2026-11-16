@@ -1,0 +1,129 @@
+# スポット案件（復習用）。学習項目ごとに2件。合否は運用シムの計算で決まる。
+# お客さんは架空。金額・訪問数はゲーム内の値。
+- id: spot-photo-studio
+  conceptId: rds-multiaz-vs-read-replica
+  guest: 森さん
+  business: 写真館の撮影予約サイト
+  voice: 七五三の時期は予約が止まると致命的なんです。データベースが故障しても、数分で戻るようにできますか？
+  goal: データベースの障害があっても、稼働率 99.5% 以上
+  plan: { visitsPerDay: 600, budget: 30000, uptimeTarget: 0.995, events: [{ day: 10, type: db-failure, label: データベースの障害 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false }
+  options:
+    - { id: standby, label: マルチ AZ にする（スタンバイを追加）, patch: { slots: { data-c: rds-standby } } }
+    - { id: replica, label: 別のAZにリードレプリカを追加, patch: { slots: { data-c: rds-replica } } }
+    - { id: none, label: 自動バックアップがあるので、このままにする, patch: {} }
+- id: spot-flower-shop
+  conceptId: rds-multiaz-vs-read-replica
+  guest: 早川さん
+  business: 町の花屋の注文サイト
+  voice: 半日くらい止まっても、うちは構いません。とにかく安く。注文の記録だけ残っていれば十分です。
+  goal: 予算 ¥15,000 以内。稼働率は 98% あればよい
+  plan: { visitsPerDay: 300, budget: 15000, uptimeTarget: 0.98, events: [{ day: 14, type: db-failure, label: データベースの障害 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false }
+  options:
+    - { id: standby, label: 念のためマルチ AZ にする, patch: { slots: { data-c: rds-standby } } }
+    - { id: replica, label: 予備としてリードレプリカを追加, patch: { slots: { data-c: rds-replica } } }
+    - { id: none, label: 自動バックアップだけで、このままにする, patch: {} }
+- id: spot-neighborhood
+  conceptId: rds-backup-restore
+  guest: 大橋さん
+  business: 町内会の名簿システム
+  voice: 名簿が消えたら作り直しに何か月もかかります。お金はほとんど出せないのですが…
+  goal: 記録を失わない。予算 ¥15,000 以内
+  plan: { visitsPerDay: 100, budget: 15000, uptimeTarget: 0.98, events: [{ day: 20, type: db-failure, label: データベースの障害 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: false, autoScaling: false }
+  avoid: [db-no-backup]
+  options:
+    - { id: backup, label: 自動バックアップを有効にする, patch: { backup: true } }
+    - { id: standby, label: マルチ AZ にする, patch: { slots: { data-c: rds-standby } } }
+    - { id: none, label: 障害はめったに起きないので、このままにする, patch: {} }
+- id: spot-architect
+  conceptId: rds-backup-restore
+  guest: 藤井さん
+  business: 設計事務所の図面共有サイト
+  voice: バックアップは毎日取っています。だから障害が起きても、止まることはないですよね？
+  goal: データベースの障害があっても、稼働率 99.5% 以上
+  plan: { visitsPerDay: 400, budget: 30000, uptimeTarget: 0.995, events: [{ day: 9, type: db-failure, label: データベースの障害 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false }
+  options:
+    - { id: none, label: バックアップがあるので、このままで大丈夫と答える, patch: {} }
+    - { id: standby, label: マルチ AZ にする（スタンバイを追加）, patch: { slots: { data-c: rds-standby } } }
+    - { id: replica, label: リードレプリカを追加する, patch: { slots: { data-c: rds-replica } } }
+- id: spot-theater
+  conceptId: ec2-scaling-and-load-balancing
+  guest: 野村さん
+  business: 小劇場のチケット販売
+  voice: 発売日はアクセスがいつもの3倍になります。前回は重くて買えなかったと苦情が来ました。
+  goal: 発売日もアクセスを受けきる。予算 ¥30,000 以内
+  plan: { visitsPerDay: 700, budget: 30000, uptimeTarget: 0.98, events: [{ day: 12, type: spike, label: チケット発売日, factor: 3, days: 2 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false }
+  avoid: [web-single-overload, web-fixed-overload, web-second-without-alb, alb-single-ec2]
+  options:
+    - { id: second, label: サーバーをもう1台追加する, patch: { slots: { app-c: ec2 } } }
+    - { id: alb-second, label: ALB を置き、サーバーをもう1台追加する, patch: { slots: { public: alb, app-c: ec2 } } }
+    - { id: alb, label: ALB を置く, patch: { slots: { public: alb } } }
+- id: spot-local-news
+  conceptId: ec2-scaling-and-load-balancing
+  guest: 石田さん
+  business: 地方ニュースサイト
+  voice: 大きなニュースが出ると、アクセスが一気に5倍になります。いつ来るかは分かりません。普段は今の2台で十分なんです。
+  goal: 急増してもアクセスを受けきる。予算 ¥28,000 以内
+  plan: { visitsPerDay: 600, budget: 28000, uptimeTarget: 0.98, events: [{ day: 17, type: spike, label: 大きなニュース, factor: 5, days: 2 }] }
+  start: { slots: { public: alb, app-a: ec2, app-c: ec2, data-a: rds, data-c: null }, backup: true, autoScaling: false }
+  avoid: [web-fixed-overload, web-single-overload]
+  options:
+    - { id: asg, label: Auto Scaling を有効にする, patch: { autoScaling: true } }
+    - { id: replica, label: リードレプリカを追加する, patch: { slots: { data-c: rds-replica } } }
+    - { id: none, label: 2台あるので、このままにする, patch: {} }
+- id: spot-city-hall
+  conceptId: multi-az-web-tier
+  guest: 中川さん
+  business: 市の施設予約システム
+  voice: データベースはマルチ AZ にしてあります。サーバーのほうも、AZ の障害で止まらないようにしたいのですが。
+  goal: AZ の障害があっても、稼働率 99.5% 以上。予算 ¥40,000 以内
+  plan: { visitsPerDay: 500, budget: 40000, uptimeTarget: 0.995, events: [{ day: 12, type: az-outage, label: AZ-a の障害 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: rds-standby }, backup: true, autoScaling: false }
+  avoid: [web-single-az-outage, web-second-without-alb, alb-single-ec2]
+  options:
+    - { id: second, label: AZ-c にサーバーをもう1台置く, patch: { slots: { app-c: ec2 } } }
+    - { id: alb-second, label: ALB を置き、AZ-c にサーバーをもう1台置く, patch: { slots: { public: alb, app-c: ec2 } } }
+    - { id: alb, label: ALB を置く, patch: { slots: { public: alb } } }
+- id: spot-video-class
+  conceptId: multi-az-web-tier
+  guest: 坂本さん
+  business: オンライン動画教室
+  voice: サーバーは2つの AZ に1台ずつ置きました。それなのに、この前の障害でサイトが止まったんです。
+  goal: AZ の障害があっても、稼働率 99.5% 以上。予算 ¥40,000 以内
+  plan: { visitsPerDay: 500, budget: 40000, uptimeTarget: 0.995, events: [{ day: 6, type: az-outage, label: AZ-a の障害 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: ec2, data-a: rds, data-c: rds-standby }, backup: true, autoScaling: false }
+  avoid: [web-single-az-outage, web-second-without-alb]
+  options:
+    - { id: alb, label: ALB を置いて、2台に振り分ける, patch: { slots: { public: alb } } }
+    - { id: drop-standby, label: スタンバイを外して費用を抑える, patch: { slots: { data-c: null } } }
+    - { id: none, label: 2台あるので、このままにする, patch: {} }
+- id: spot-dental
+  conceptId: rds-network-isolation
+  guest: 西田さん
+  business: 歯科医院の予約システム
+  voice: 患者さんの名前と電話番号が入っています。業者さんが作ったままなのですが、安全でしょうか？
+  goal: データベースにインターネットから届かないこと
+  plan: { visitsPerDay: 200, budget: 30000, uptimeTarget: 0.98, events: [{ day: 15, type: probe, label: データベースへの不審なアクセス }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false, dbPublic: true, dbSgOpen: true }
+  avoid: [db-exposed]
+  options:
+    - { id: close, label: パブリックアクセスを「なし」にし、接続元を web-sg だけに絞る, patch: { dbPublic: false, dbSgOpen: false } }
+    - { id: standby, label: マルチ AZ にする, patch: { slots: { data-c: rds-standby } } }
+    - { id: none, label: 今まで問題がなかったので、このままにする, patch: {} }
+- id: spot-zakka
+  conceptId: rds-network-isolation
+  guest: 小林さん
+  business: 雑貨店の通販サイト
+  voice: 自動バックアップも取っているし、データは守られていますよね？ データベースは外からも見られる設定だと聞きましたが。
+  goal: データベースにインターネットから届かないこと
+  plan: { visitsPerDay: 300, budget: 30000, uptimeTarget: 0.98, events: [{ day: 21, type: probe, label: データベースへの不審なアクセス }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false, dbPublic: true, dbSgOpen: true }
+  avoid: [db-exposed]
+  options:
+    - { id: none, label: バックアップがあるので大丈夫と答える, patch: {} }
+    - { id: close, label: パブリックアクセスを「なし」にし、接続元を web-sg だけに絞る, patch: { dbPublic: false, dbSgOpen: false } }
+    - { id: replica, label: リードレプリカを追加する, patch: { slots: { data-c: rds-replica } } }
