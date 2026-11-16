@@ -1,6 +1,7 @@
 // ④ 検証：聞き出した要件ごとに、構成が合っているかを確かめる。
 import { customerById, simByCustomer } from '../content';
 import { StepBar } from '../components/StepBar';
+import { Senpai } from '../components/Senpai';
 import { PrimaryButton, Screen } from '../components/ui';
 import { go } from '../router';
 import { verify } from '../sim/verify';
@@ -44,6 +45,7 @@ export function Verify({ customerId }: { customerId: string }) {
       }
     >
       <StepBar customerId={customerId} current="verify" />
+      <Senpai tip="verify" />
       <Radar scores={radarScores(save.blueprint, plan, sim.features.includes('files'))} priority={sim.priority} />
       <ul className="space-y-2">
         {checks.map((c) => {

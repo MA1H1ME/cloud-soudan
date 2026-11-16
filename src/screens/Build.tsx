@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { customerById, simByCustomer } from '../content';
 import { StepBar } from '../components/StepBar';
+import { Senpai } from '../components/Senpai';
 import { yen } from '../components/ui';
 import { go } from '../router';
 import { fixedCost } from '../sim/engine';
@@ -79,6 +80,7 @@ export function Build({ customerId }: { customerId: string }) {
 
       <main className="flex-1 space-y-3 px-3 py-3">
         {inCase && <StepBar customerId={customerId} current="build" />}
+        <Senpai tip="build" />
         {files && (
           <nav className="flex gap-1 text-xs" aria-label="サービス">
             {([['rds', 'Amazon RDS'], ['s3', 'Amazon S3'], ['iam', 'IAM']] as const).map(([id, label]) => (

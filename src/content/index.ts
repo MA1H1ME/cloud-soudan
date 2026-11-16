@@ -11,3 +11,4 @@ export const cardById = new Map(content.cards.map((c) => [c.id, c]));
 export const ruleById = new Map(content.rules.map((r) => [r.id, r]));
 export const simByCustomer = new Map(content.sim.map((s) => [s.customerId, s]));
 export const spotById = new Map(content.spots.map((s) => [s.id, s]));
+export const termById = new Map(content.glossary.map((g) => [g.id, g]));

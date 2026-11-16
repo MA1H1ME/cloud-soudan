@@ -9,8 +9,19 @@ import { Build } from './screens/Build';
 import { Verify } from './screens/Verify';
 import { SpotScreen } from './screens/Spot';
 import { Record } from './screens/Record';
+import { Glossary } from './screens/Glossary';
+import { TermSheet } from './components/Term';
 
 export function App() {
+  return (
+    <>
+      <Routes />
+      <TermSheet />
+    </>
+  );
+}
+
+function Routes() {
   const route = useRoute();
   switch (route.name) {
     case 'opening':
@@ -21,6 +32,8 @@ export function App() {
       return <SpotScreen key={route.spotId} spotId={route.spotId} practice={route.practice} />;
     case 'record':
       return <Record />;
+    case 'glossary':
+      return <Glossary />;
     case 'hearing':
       return <Hearing customerId={route.customerId} />;
     case 'build':

@@ -4,6 +4,7 @@ import { ruleById, spotById } from '../content';
 import { BlueprintView } from '../components/BlueprintView';
 import { StaticView } from '../components/StaticView';
 import { RuleSources } from '../components/RuleSources';
+import { Senpai } from '../components/Senpai';
 import { Face, PrimaryButton, Screen, Stamp, pct, yen } from '../components/ui';
 import { go } from '../router';
 import { fixedCost } from '../sim/engine';
@@ -35,6 +36,7 @@ export function SpotScreen({ spotId, practice }: { spotId: string; practice: boo
       right={practice ? <span className="text-xs text-slate-500">練習</span> : undefined}
       footer={outcome ? <PrimaryButton onClick={back}>{practice ? '記録に戻る' : 'フロアに戻る'}</PrimaryButton> : <PrimaryButton onClick={submit} disabled={!choice}>この対応で1か月を回す</PrimaryButton>}
     >
+      {!outcome && <Senpai tip="spot" />}
       {outcome && (
         <section className="space-y-3">
           <div className="flex items-center gap-3">

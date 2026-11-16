@@ -1,6 +1,7 @@
 // ① ヒアリング：用意した質問から選んで聞き、要件メモを埋める。
 import { customerById, simByCustomer } from '../content';
 import { StepBar } from '../components/StepBar';
+import { Senpai } from '../components/Senpai';
 import { Face, PrimaryButton, Screen } from '../components/ui';
 import { go } from '../router';
 import { customerSave, useSave } from '../store';
@@ -29,6 +30,7 @@ export function Hearing({ customerId }: { customerId: string }) {
       footer={<PrimaryButton onClick={next}>{left > 0 ? 'ヒアリングを切り上げて ② 設計へ' : '② 設計へ進む'}</PrimaryButton>}
     >
       <StepBar customerId={customerId} current="hearing" />
+      <Senpai tip="hearing" />
 
       <div className="flex items-start gap-2">
         <Face mood="normal" />

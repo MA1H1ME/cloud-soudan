@@ -13,6 +13,7 @@ import {
   cardSchema,
   conceptSchema,
   customerSchema,
+  glossarySchema,
   scenarioSchema,
   type Condition,
   type ContentBundle,
@@ -188,7 +189,12 @@ export function validate(dir: string, allowDraft: boolean): Report {
 
   if (!allowDraft && drafts > 0) warnings.push(`下書きの相談 ${drafts} 件は公開用ビルドから除外しました`);
 
-  return { errors, warnings, bundle: { scenarios: selected, concepts, customers, cards, rules, sim, spots } };
+  // 用語図鑑：照合済みのものだけ公開する
+  let glossary = load(join(dir, 'glossary.yaml'), z.array(glossarySchema), errors) ?? [];
+  dup('glossary', glossary.map((g) => g.id));
+  if (!allowDraft) glossary = glossary.filter((g) => g.review.status === 'verified');
+
+  return { errors, warnings, bundle: { scenarios: selected, concepts, customers, cards, rules, sim, spots, glossary } };
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
