@@ -17,6 +17,7 @@ import { BlueprintView } from '../components/BlueprintView';
 import { StaticView } from '../components/StaticView';
 import { unlockedAt } from '../jobs';
 import { unlockStage } from '../store';
+import { GRADE_REPUTATION } from '../reputation';
 import { BEST_BONUS, MISSED_FACTOR, contractFeeFor, customerSave, missedRequirements, planFor, runningResult, useSave } from '../store';
 
 export function Report({ customerId }: { customerId: string }) {
@@ -53,6 +54,8 @@ export function Report({ customerId }: { customerId: string }) {
       <div className="space-y-1">
         <p className="text-center text-xs text-slate-600">
           {result.grade !== 'fail' ? <>入金：契約料 <b className="text-slate-900">+{yen(fee)}</b>{result.grade === 'best' && <>　ボーナス <b className="text-slate-900">+{yen(BEST_BONUS)}</b></>}</> : '目標を達成できなかったので、今月の契約料は入りません'}
+          {result.grade === 'fair' && <span className="block">△のため、契約料は7割です</span>}
+          <span className="block">評判 {GRADE_REPUTATION[result.grade] >= 0 ? '+' : ''}{GRADE_REPUTATION[result.grade]}{result.grade === 'best' ? '　お客さんが別の案件を紹介してくれます' : ''}</span>
         </p>
         <PrimaryButton onClick={next}>{planFor(sim, save.month + 1) ? '翌月へ' : '契約を完了する'}</PrimaryButton>
       </div>

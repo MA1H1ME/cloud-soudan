@@ -5,7 +5,7 @@ import { spotById } from '../content';
 import { Screen, yen } from '../components/ui';
 import { go } from '../router';
 import { businessFor, jobFor, nameFor } from '../jobs';
-import { MAX_RACKS, SPOT_REWARD, rackPrice, dueSpots, inbox, onRacks, pendingRequests, useSave } from '../store';
+import { MAX_RACKS, SPOT_REWARD, jobFeeNow, rackPrice, dueSpots, inbox, onRacks, pendingRequests, useSave } from '../store';
 import type { SimCustomer } from '../sim/schema';
 
 const PRIORITY = { security: 'セキュリティ', reliability: '止まらないこと', performance: '速さ', cost: 'コスト' } as const;
@@ -96,11 +96,11 @@ export function Mail() {
             <article key={m.id} className="border border-slate-300 text-sm">
               <button type="button" onClick={() => setOpen(expanded ? null : m.id)} aria-expanded={expanded} className="block w-full px-3 py-2 text-left">
                 <span className="flex items-center justify-between text-xs">
-                  <span className="text-amber-600">{'★'.repeat(job.level)}{'☆'.repeat(3 - job.level)}</span>
+                  <span className="text-amber-600">{'★'.repeat(job.level)}{'☆'.repeat(3 - job.level)}{m.referral && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-800">🤝 紹介（報酬1.5倍）</span>}</span>
                   <span className={m.left <= 1 ? 'font-bold text-red-700' : 'text-slate-500'}>{m.left <= 1 ? '今日まで' : `あと${m.left}日`}</span>
                 </span>
                 <span className="block font-bold text-slate-900">{job.name}さん（{job.business}）</span>
-                <span className="block text-xs text-slate-600">{KIND[job.kind]}・最優先：{PRIORITY[job.sim.priority]}・報酬 {yen(job.sim.contractFee)}</span>
+                <span className="block text-xs text-slate-600">{KIND[job.kind]}・最優先：{PRIORITY[job.sim.priority]}・報酬 {yen(jobFeeNow(state, m.id))}</span>
               </button>
               {expanded && (
                 <div className="space-y-2 border-t border-slate-200 px-3 py-2">

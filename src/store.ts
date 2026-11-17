@@ -3,11 +3,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { conceptById, content, ruleById } from './content';
-import { MAIL_DAYS, mailsForDay, simFor } from './jobs';
+import { MAIL_DAYS, jobFor, mailsForDay, referralId, simFor } from './jobs';
 import { addDays, enqueue, gameDate, INTERVAL_DAYS, onReviewAnswered, pickDueReviews, type ReviewItem } from './engine/review';
 import { DAYS, runMonth, type Grade, type MonthResult } from './sim/engine';
 import { verify } from './sim/verify';
 import { setSoundEnabled, sfx } from './sound';
+import { GRADE_FEE, REFERRAL_EXTRA_DAYS, REFERRAL_FEE, START_REPUTATION, nextReputation, tierIndex, tierOf } from './reputation';
 import { GEAR, MAX_RACKS, PAYDAY, REBUILD_CASH, START_CASH, START_RACKS, STAFF, rackPrice, salesFeeMult, salesMailBonus, settlePayday, type StaffKind, type StaffLevels } from './economy';
 import { LOCKED_SLOTS } from './sim/parts';
 import type { Responses } from './sim/incidents';
@@ -45,6 +46,7 @@ export interface Company { name: string; cash: number }
 
 export { STAFF, GEAR, GEAR_IDS, PAYDAY, START_CASH, START_RACKS, MAX_RACKS, INTEREST_RATE, BANKRUPT_LIMIT, REBUILD_CASH, payroll, rackPrice, isBankrupt, salesFeeMult, salesMailBonus } from './economy';
 export type { StaffKind, StaffLevels } from './economy';
+export { TIERS, tierIndex, tierOf, REFERRAL_FEE } from './reputation';
 
 /** 会社のランク（受け取った契約料の合計で決まる） */
 export const RANKS = [
@@ -67,7 +69,9 @@ interface SaveState {
   clock: number;
   racks: number;
   /** 届いた案件メール */
-  mailLog: { id: string; day: number }[];
+  mailLog: { id: string; day: number; referral?: boolean }[];
+  /** 会社の評判（0〜100）。月次報告の結果で上下し、案件メールの数・報酬・紹介に効く */
+  reputation: number;
   /** メールへの返事 */
   mailStatus: Record<string, 'accepted' | 'declined'>;
   setClock: (day: number) => void;
@@ -176,13 +180,14 @@ export const useSave = create<SaveState>()(
         clock: 1,
         racks: START_RACKS,
         mailLog: [],
+        reputation: START_REPUTATION,
         mailStatus: {},
         setClock: (day) => {
           const st = get();
           if (day <= st.clock) return;
           const stage = unlockStage(st);
           const fresh = stage >= MAIL_STAGE
-            ? Array.from({ length: day - st.clock }, (_, i) => st.clock + 1 + i).flatMap((d) => mailsForDay(d, Math.min(3, stage), salesMailBonus(st.staff.sales), st.mailLog.length < EARLY_MAILS).map((id) => ({ id, day: d })))
+            ? Array.from({ length: day - st.clock }, (_, i) => st.clock + 1 + i).flatMap((d) => mailsForDay(d, Math.min(3, stage), salesMailBonus(st.staff.sales) + tierOf(st.reputation).mails, st.mailLog.length < EARLY_MAILS).map((id) => ({ id, day: d })))
             : [];
           // 古いメールは記録から落とす（受けたものは残す）
           const mailLog = [...st.mailLog, ...fresh].filter((m) => day - m.day < 30 || st.mailStatus[m.id] === 'accepted');
@@ -264,7 +269,7 @@ export const useSave = create<SaveState>()(
           set({ staff: { ops: 0, sales: 0 }, company: { ...st.company, cash: REBUILD_CASH }, lastPay: null });
         },
         importSave: (data) => set({ ...data }),
-        newGame: (name) => set({ staff: { ops: 0, sales: 0 }, gear: [], encountered: [], learned: [], revenue: 0, endingSeen: false, seenRank: 0, lastPay: null, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
+        newGame: (name) => set({ reputation: START_REPUTATION, staff: { ops: 0, sales: 0 }, gear: [], encountered: [], learned: [], revenue: 0, endingSeen: false, seenRank: 0, lastPay: null, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
         answerSpot: (spotId, passed, firedRuleIds, practice) => {
           const spot = content.spots.find((x) => x.id === spotId);
           const st = get();
@@ -305,6 +310,20 @@ export const useSave = create<SaveState>()(
           const sim = simFor(customerId);
           const company = get().company;
           const fee = sim ? contractFeeFor(get(), customerId, grade) : 0;
+          // 結果で評判が上下する。段階が変わったら知らせる。◎なら、お客さんが別の案件を紹介してくれる
+          const before = get().reputation;
+          const after = nextReputation(before, grade);
+          const notes: string[] = [];
+          if (tierIndex(after) !== tierIndex(before)) notes.push(`評判が「${tierOf(after).name}」になりました`);
+          let mailLog = get().mailLog;
+          if (grade === 'best' && sim) {
+            const id = referralId(get().clock, Math.min(3, unlockStage(get())));
+            if (!mailLog.some((m) => m.id === id)) {
+              mailLog = [...mailLog, { id, day: get().clock, referral: true }];
+              notes.push('🤝 お客さんが案件を紹介してくれました（メールを確認）');
+            }
+          }
+          set({ reputation: after, mailLog, income: [get().income, ...notes].filter(Boolean).join('　') || null });
           if (company && fee > 0) sfx.coin();
           if (company && fee > 0) set({ company: { ...company, cash: company.cash + fee + (grade === 'best' ? BEST_BONUS : 0) }, revenue: get().revenue + fee });
           const save = customerSave(get(), customerId);
@@ -337,7 +356,7 @@ export const useSave = create<SaveState>()(
         },
       };
     },
-    { name: 'cloud-soudan-company-2', version: 5,
+    { name: 'cloud-soudan-company-2', version: 6,
       migrate: (old, version) => {
         const o = old as { customers?: Record<string, CustomerSave> };
         const had = Object.keys(o.customers ?? {});
@@ -347,7 +366,7 @@ export const useSave = create<SaveState>()(
         // v5：社員を true/false から等級（0〜）に変えた
         const oldStaff = (base as { staff?: { ops?: boolean | number; sales?: boolean | number } }).staff ?? {};
         const staff = { ops: Number(oldStaff.ops ?? 0), sales: Number(oldStaff.sales ?? 0) };
-        return { clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, learned: [], revenue: 0, endingSeen: false, gear: [], encountered: [], ...base, staff, customers };
+        return { clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, learned: [], revenue: 0, endingSeen: false, gear: [], encountered: [], reputation: START_REPUTATION, ...base, staff, customers };
       }, },
   ),
 );
@@ -398,21 +417,34 @@ export function missedRequirements(sim: SimCustomer, save: CustomerSave): { id: 
 export const MISSED_FACTOR = 0.7;
 
 /** その月に受け取る契約料（不合格なら0。聞き漏らし・営業担当で増減する） */
-export function contractFeeFor(state: Pick<SaveState, 'customers' | 'staff'>, customerId: string, grade: Grade): number {
+export function contractFeeFor(state: Pick<SaveState, 'customers' | 'staff' | 'reputation' | 'mailLog'>, customerId: string, grade: Grade): number {
   const sim = simFor(customerId);
   const save = customerSave(state, customerId);
   if (!sim || !save || grade === 'fail') return 0;
-  let fee = sim.contractFee;
-  if (customerId.startsWith('job-')) fee *= salesFeeMult(state.staff.sales);
+  let fee = sim.contractFee * GRADE_FEE[grade];
+  if (customerId.startsWith('job-')) fee = fee * jobFeeFactor(state, customerId);
   if (missedRequirements(sim, save).length > 0) fee *= MISSED_FACTOR;
   return Math.round(fee / 100) * 100;
 }
 
+/** 案件メールの報酬にかかる倍率（営業担当の等級・評判の段階・紹介） */
+export function jobFeeFactor(state: Pick<SaveState, 'staff' | 'reputation' | 'mailLog'>, id: string): number {
+  const referral = state.mailLog.some((m) => m.id === id && m.referral);
+  return salesFeeMult(state.staff.sales) * tierOf(state.reputation).fee * (referral ? REFERRAL_FEE : 1);
+}
+
+/** 受信箱に出す、今の報酬の見込み */
+export function jobFeeNow(state: Pick<SaveState, 'staff' | 'reputation' | 'mailLog'>, id: string): number {
+  const job = jobFor(id);
+  return job ? Math.round((job.sim.contractFee * jobFeeFactor(state, id)) / 100) * 100 : 0;
+}
+
 /** 受信箱の案件メール（期限内で、まだ返事をしていないもの。期限の近い順） */
-export function inbox(state: Pick<SaveState, 'clock' | 'mailLog' | 'mailStatus'>): { id: string; day: number; left: number }[] {
+export function inbox(state: Pick<SaveState, 'clock' | 'mailLog' | 'mailStatus'>): { id: string; day: number; left: number; referral: boolean }[] {
+  const days = (m: { referral?: boolean }) => MAIL_DAYS + (m.referral ? REFERRAL_EXTRA_DAYS : 0);
   return state.mailLog
-    .filter((m) => !state.mailStatus[m.id] && state.clock - m.day < MAIL_DAYS && simFor(m.id))
-    .map((m) => ({ ...m, left: MAIL_DAYS - (state.clock - m.day) }))
+    .filter((m) => !state.mailStatus[m.id] && state.clock - m.day < days(m) && simFor(m.id))
+    .map((m) => ({ ...m, referral: Boolean(m.referral), left: days(m) - (state.clock - m.day) }))
     // 期限の近い順（同じなら新しい順）
     .sort((a, b) => a.left - b.left || b.day - a.day);
 }
