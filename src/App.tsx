@@ -18,6 +18,7 @@ import { CompanyScreen } from './screens/Company';
 import { Ending } from './screens/Ending';
 import { Transfer } from './screens/Transfer';
 import { Exam } from './screens/Exam';
+import { Achievements } from './screens/Achievements';
 import { TermSheet } from './components/Term';
 
 export function App() {
@@ -77,6 +78,8 @@ function Routes() {
       return <Transfer />;
     case 'exam':
       return <Exam />;
+    case 'achievements':
+      return <Achievements />;
     case 'hearing':
       return <Hearing customerId={route.customerId} />;
     case 'build':

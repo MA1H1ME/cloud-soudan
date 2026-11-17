@@ -42,6 +42,9 @@ export interface Incident {
 
 export type Responses = Record<string, string>;
 
+/** 障害対応の種類（incidentFor が返す type の一覧） */
+export const INCIDENT_TYPES = ['replica-promote', 'backup-restore', 'spike-alb', 'spike-noalb', 'db-sg', 'bucket-bpa', 'audit-role'] as const;
+
 type Ev = MonthPlan['events'][number];
 
 function spikeOverload(ev: Ev, plan: MonthPlan, base: number): boolean {
