@@ -16,7 +16,7 @@ import { Desk, MONO, Person, PX, Tiles } from '../components/pixel';
 import { yen } from '../components/ui';
 import { Senpai, SenpaiLine } from '../components/Senpai';
 import { isStory, jobFor, nameFor, simFor } from '../jobs';
-import { sfx } from '../sound';
+import { bgm, sfx } from '../sound';
 
 const SECONDS_PER_DAY = 0.5;
 const W = 288, H = 300;
@@ -52,6 +52,13 @@ const OFFICE = [
   { id: 'ops', name: `${STAFF.ops.name}（運用）`, x: 144, shirt: '#7a4fd8' },
   { id: 'sales', name: `${STAFF.sales.name}（営業）`, x: 212, shirt: '#d84f7a' },
 ] as const;
+
+/** 社員の歩く順路（席からの移動量）。暦の2日ごとに次の地点へ歩く。乱数は使わず、暦だけで決まる */
+const WALK: Record<string, { phase: number; stops: [number, number][] }> = {
+  senpai: { phase: 0, stops: [[0, 0], [0, 0], [34, 22], [34, 22], [-10, 26], [0, 0]] },
+  ops: { phase: 3, stops: [[0, 0], [0, 0], [0, 0], [-34, 24], [-34, 24], [12, 26]] },
+  sales: { phase: 5, stops: [[0, 0], [0, 0], [-30, 26], [-30, 26], [-62, 10], [0, 0]] },
+};
 
 interface Rack {
   id: string;
@@ -209,6 +216,12 @@ export function Floor() {
   const blockingRack = racks.find((r) => r.blocking && !canDelegate(r.blocking));
   const blockingKey = blockingRack ? `${blockingRack.id}-${blockingRack.blocking!.key}` : '';
   useEffect(() => { if (blockingKey) sfx.alarm(); }, [blockingKey]);
+  // 障害の対応中は曲が変わる（設定がオフなら何も鳴らない）
+  useEffect(() => {
+    if (!state.music) return;
+    bgm.set(blockingKey ? 'alert' : 'calm');
+    return () => bgm.set('calm');
+  }, [blockingKey, state.music]);
   if (!company) return null;
   const reportRack = racks.find((r) => r.reportReady);
   const MAIN = outcome?.id ?? blockingRack?.id ?? (racks.some((r) => r.id === state.active) ? state.active! : racks[0]?.id ?? '');
@@ -228,6 +241,7 @@ export function Floor() {
           { label: '用語図鑑', on: () => go({ name: 'glossary' }) },
           { label: '先輩の案内をもう一度見る', on: () => { state.resetTips(); setMenu(false); } },
           { label: `効果音：${state.sound ? 'オン' : 'オフ'}`, on: () => state.setSound(!state.sound) },
+          { label: `BGM：${state.music ? 'オン' : 'オフ'}`, on: () => state.setMusic(!state.music) },
           { label: 'タイトルへ戻る', on: () => go({ name: 'title' }) },
         ].map((m) => (
           <button key={m.label} type="button" onClick={() => { setSpeed(0); m.on(); }} className="block w-full px-2 py-2 text-left active:bg-white/10">{m.label}</button>
@@ -316,15 +330,19 @@ export function Floor() {
             }
             const running = o.id === 'senpai' && alarm;
             const speak = () => { setSpeed(0); setTalk({ who: o.id, text: lineFor(o.id) }); };
+            const walk = WALK[o.id];
+            // 時間が流れているときだけ歩く。止めているときは、その場で立ち止まる
+            const [dx, dy] = running ? [0, 26] : walk ? walk.stops[Math.floor((state.clock + walk.phase) / 2) % walk.stops.length]! : [0, 0];
+            const moving = speed > 0 && !running && Boolean(walk);
             return (
-              <g key={o.id} role="button" tabIndex={0} aria-label={`${o.name}（話しかける）`} style={{ cursor: 'pointer' }} onClick={speak} onKeyDown={(e) => e.key === 'Enter' && speak()}>
-                <g className={running ? 'runner' : undefined}>
-                  <Person x={o.x + 19} y={running ? 72 : 46} shirt={o.shirt} />
-                  {running && <g className="bob"><rect x={o.x + 21} y="56" width="12" height="12" fill={PX.y} /><text x={o.x + 27} y="66" textAnchor="middle" fontSize="11" fontWeight="700" fill={PX.ink}>!</text></g>}
+              <g key={o.id} role="button" tabIndex={0} aria-label={`${o.name}（話しかける）`} style={{ cursor: 'pointer', transform: `translate(${dx}px, ${dy}px)`, transition: `transform ${speed >= 4 ? 0.25 : 0.9}s linear` }} onClick={speak} onKeyDown={(e) => e.key === 'Enter' && speak()}>
+                <g className={running ? 'runner' : moving ? 'bob' : undefined}>
+                  <Person x={o.x + 19} y={46} shirt={o.shirt} />
+                  {running && <g className="bob"><rect x={o.x + 21} y="30" width="12" height="12" fill={PX.y} /><text x={o.x + 27} y="40" textAnchor="middle" fontSize="11" fontWeight="700" fill={PX.ink}>!</text></g>}
                 </g>
-                <rect x={o.x + 1} y={running ? 98 : 72} width="46" height="11" fill={o.id === 'you' ? PX.btn : PX.box} opacity="0.85" />
-                <text x={o.x + 24} y={running ? 106 : 80} textAnchor="middle" fontSize="7.5" fill={PX.w}>{o.id === 'you' ? '▼あなた' : o.name}</text>
-                <rect x={o.x + 8} y={running ? 70 : 44} width="32" height="40" fill="transparent" />
+                <rect x={o.x + 1} y="72" width="46" height="11" fill={o.id === 'you' ? PX.btn : PX.box} opacity="0.85" />
+                <text x={o.x + 24} y="80" textAnchor="middle" fontSize="7.5" fill={PX.w}>{o.id === 'you' ? '▼あなた' : o.name}</text>
+                <rect x={o.x + 8} y="44" width="32" height="40" fill="transparent" />
               </g>
             );
           })}
@@ -391,6 +409,26 @@ export function Floor() {
                 {rack && !isStory(rack.id) && <text x={x + rw - 4} y="134" textAnchor="end" fontSize="8" fill={PX.y}>{'★'.repeat(jobFor(rack.id)?.level ?? 1)}</text>}
                 <text x={x + rw / 2} y="252" textAnchor="middle" fontSize="10" fontWeight={active ? 700 : 400} fill={hot ? PX.r : PX.w}>{label}</text>
                 <text x={x + rw / 2} y="266" textAnchor="middle" fontSize="8" fill={rack?.reportReady ? PX.y : PX.smoke} fontFamily={MONO}>{status}</text>
+                {(() => {
+                  const ev = rack?.result && rack.day > 0 ? rack.result.fired.filter((f) => f.day <= rack.day && f.day > rack.day - 3).at(-1) : undefined;
+                  const rule = ev ? ruleById.get(ev.ruleId) : undefined;
+                  if (!ev || !rule || blockingRack) return null;
+                  const good = rule.tone === 'good';
+                  const bw = 124;
+                  const bx = Math.min(W - bw - 2, Math.max(2, x + rw / 2 - bw / 2));
+                  const text = rule.headline.length > 30 ? `${rule.headline.slice(0, 29)}…` : rule.headline;
+                  return (
+                    <g key={`b${ev.ruleId}`} className="sheet-in">
+                      <rect x={bx} y="88" width={bw} height="26" fill={PX.w} stroke={good ? '#1f9d55' : PX.r} strokeWidth="1.5" />
+                      <path d={`M${x + rw / 2 - 4} 114l4 6l4 -6z`} fill={PX.w} stroke={good ? '#1f9d55' : PX.r} strokeWidth="1.5" />
+                      <rect x={x + rw / 2 - 3} y="113" width="6" height="2" fill={PX.w} />
+                      <text x={bx + 3} y="98" fontSize="8" fontWeight="700" fill={good ? '#1f9d55' : PX.r}>{good ? '♪' : '!'}</text>
+                      <foreignObject x={bx + 11} y="89" width={bw - 14} height="24">
+                        <p style={{ fontSize: 6.5, lineHeight: 1.25, color: PX.ink, margin: 0 }}>{text}</p>
+                      </foreignObject>
+                    </g>
+                  );
+                })()}
                 {hot && (
                   <g>
                     <rect x={x + rw / 2 - 14} y="126" width="8" height="8" fill={PX.smoke} className="puff" />
@@ -403,12 +441,7 @@ export function Floor() {
           <text x="280" y="292" textAnchor="end" fontSize="9" fill={PX.smoke} fontFamily={MONO}>サーバールーム</text>
         </svg>
 
-        {latest && !blockingRack && (
-          <div className={`absolute left-3 right-3 top-2 border-2 px-3 py-2 text-xs shadow ${ruleById.get(latest.ruleId)?.tone === 'bad' ? 'border-red-700 bg-white' : 'border-slate-800 bg-white'}`} aria-live="polite">
-            <p className="font-bold text-slate-900">{name}さん {latest.day}日目：{latest.label}</p>
-            {recent.filter((f) => f.day === latest.day).map((f) => <p key={f.ruleId} className="text-slate-800">{ruleById.get(f.ruleId)?.headline}</p>)}
-          </div>
-        )}
+        {latest && <p className="sr-only" aria-live="polite">{name}さん {latest.day}日目：{latest.label}：{ruleById.get(latest.ruleId)?.headline}</p>}
         {toast && <p className="absolute left-3 right-3 top-2 z-10 border-2 border-yellow-300 bg-slate-900 px-3 py-2 text-center text-sm text-white" role="status">{toast}</p>}
       </div>
 
