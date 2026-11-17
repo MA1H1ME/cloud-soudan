@@ -8,6 +8,7 @@ const patchSchema = z.object({
   slots: z.partialRecord(z.enum(['public', 'app-a', 'app-c', 'data-a', 'data-c']), partTypeSchema.nullable()).optional(),
   backup: z.boolean().optional(),
   autoScaling: z.boolean().optional(),
+  encryptDb: z.boolean().optional(),
   dbPublic: z.boolean().optional(),
   dbSgOpen: z.boolean().optional(),
   s3Public: z.boolean().optional(),

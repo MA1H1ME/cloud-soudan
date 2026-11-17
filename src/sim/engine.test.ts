@@ -222,3 +222,19 @@ describe('読み込みの急増', () => {
     expect(r.kpi.performance).toBe(false);
   });
 });
+
+describe('保管時の暗号化の審査', () => {
+  const plan = { ...month(1), events: [{ day: 15, type: 'encryption-audit' as const, label: '審査' }] };
+  it('暗号化していれば、そのまま通過する', () => {
+    const r = runMonth(k.profitPerVisit, plan, bp({}, { encryptDb: true }));
+    expect(ids(r)).toContain('db-encrypted');
+    expect(r.kpi.security).toBe(true);
+  });
+  it('暗号化していなければ、指摘を受けて損害が出る', () => {
+    const on = runMonth(k.profitPerVisit, plan, bp({}, { encryptDb: true }));
+    const off = runMonth(k.profitPerVisit, plan, bp({}, { encryptDb: false }));
+    expect(ids(off)).toContain('db-unencrypted');
+    expect(off.kpi.security).toBe(false);
+    expect(off.net).toBeLessThan(on.net);
+  });
+});

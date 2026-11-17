@@ -89,6 +89,7 @@ export function BlueprintView({ blueprint, selected, onSelect }: { blueprint: Bl
         );
       })}
       {blueprint.backup && <text x={mid('data-a')} y={BOX['data-a'].y + 54} textAnchor="middle" fontSize="9.5" fill={C} fontFamily={MONO}>自動バックアップ</text>}
+      {blueprint.encryptDb && <text x={mid('data-a')} y={BOX['data-a'].y + 66} textAnchor="middle" fontSize="9.5" fill={C} fontFamily={MONO}>暗号化</text>}
       {s['data-c'] && (
         <text x="164" y="318" textAnchor="middle" fontSize="9" fill={M} fontFamily={MONO}>{s['data-c'] === 'rds-standby' ? '同期' : '非同期'}</text>
       )}

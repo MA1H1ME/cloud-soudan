@@ -17,6 +17,7 @@ const HELP_IAM = 'EC2 に IAM ロールを割り当てると、アプリケー�
 const HELP = {
   az: 'マルチ AZ DB インスタンスでは、別のアベイラビリティーゾーンに待機系（スタンバイ）が置かれ、本体から同期的に複製されます。本体に障害が起きると、自動で待機系に切り替わります。待機系を読み取りに使うことはできません。',
   conn: 'パブリックアクセスを「あり」にすると、インターネットから届くパブリックIPアドレスが割り当てられます。セキュリティグループのルールは、届く通信を制御します。接続元には、IPアドレスの範囲のほかに、別のセキュリティグループも指定できます。',
+  encrypt: 'Amazon RDS の暗号化したDBインスタンスは、AES-256 で保存データを暗号化します。基盤のストレージ、ログ、自動バックアップ、リードレプリカ、スナップショットが暗号化されます。保存時の暗号化の要件を満たすのに使えます。作成後に、KMS キーは変更できません。',
   backup: '自動バックアップを有効にすると、保持期間内の任意の時点にデータベースを復元できます。復元では、新しいDBインスタンスが作られます。保持期間を0にすると、自動バックアップは無効になります。',
 };
 
@@ -127,6 +128,13 @@ export function Build({ customerId }: { customerId: string }) {
           </label>
         </Section>
 
+        <Section title="暗号化" summary={bp.encryptDb ? '有効' : '無効'} help={HELP.encrypt}>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={bp.encryptDb} disabled={locked} onChange={(e) => state.setSetting(customerId, 'encryptDb', e.target.checked)} className="h-4 w-4 accent-teal-600" />
+            <span className="text-slate-900">暗号化を有効にする</span>
+          </label>
+          <p className="text-xs text-slate-500">AWS KMS キー：aws/rds（デフォルト）</p>
+        </Section>
         <Section title="追加設定（バックアップ）" summary={bp.backup ? '有効' : '無効'} help={HELP.backup}>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={bp.backup} disabled={locked} onChange={(e) => state.setSetting(customerId, 'backup', e.target.checked)} className="h-4 w-4 accent-teal-600" />
