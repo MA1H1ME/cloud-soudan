@@ -286,3 +286,22 @@
     - { title: 'Multi-AZ DB instance deployments for Amazon RDS', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html', checkedAt: '2026-11-16' }
     - { title: 'Working with DB instance read replicas', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html', checkedAt: '2026-11-16' }
   review: { status: verified, verifiedAt: '2026-11-16' }
+- id: db-encrypted
+  conceptId: rds-encryption
+  tone: good
+  headline: 保存データもバックアップも暗号化されていて、審査をそのまま通過した
+  explanation: 暗号化を有効にした RDS の DB インスタンスでは、基盤のストレージ、ログ、自動バックアップ、リードレプリカ、スナップショットが暗号化されます。AES-256 で暗号化され、保存時の暗号化の要件を満たすのに使えます。なお、暗号化したインスタンスの KMS キーは、作成後に変更できません。
+  examPoint: 「保存データの暗号化」「コンプライアンス要件」は、RDS の暗号化（AWS KMS）が基本。バックアップやスナップショットまで暗号化される点も問われる。
+  sources:
+    - { title: 'Encrypting Amazon RDS resources', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Overview.Encryption.html', checkedAt: '2026-11-17' }
+  review: { status: verified, verifiedAt: '2026-11-17' }
+- id: db-unencrypted
+  conceptId: rds-encryption
+  tone: bad
+  headline: 保存データの暗号化がなく、導入先の審査で指摘された
+  explanation: RDS の暗号化は、基盤のストレージを不正アクセスから守り、保存時の暗号化の要件を満たすために使います。暗号化を有効にしたインスタンスでは、ログ、バックアップ、スナップショットも暗号化されます。暗号化を有効にしていなかったので、この保護が働いておらず、審査で指摘されました。
+  examPoint: 暗号化の要件がある問題では、RDS の暗号化（AWS KMS）を有効にする選択肢が正解。通信の暗号化（HTTPS）とは別のもの。
+  ticket: { kind: security, voice: '審査で「保存データが暗号化されていない」と言われました。どうして最初から有効にしなかったんですか？' }
+  sources:
+    - { title: 'Encrypting Amazon RDS resources', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Overview.Encryption.html', checkedAt: '2026-11-17' }
+  review: { status: verified, verifiedAt: '2026-11-17' }

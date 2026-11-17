@@ -135,3 +135,11 @@
     - { title: 'IAM roles for Amazon EC2', url: 'https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html', checkedAt: '2026-11-16' }
     - { title: 'Security best practices in IAM', url: 'https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html', checkedAt: '2026-11-16' }
   review: { status: verified, verifiedAt: '2026-11-16' }
+- id: rds-encryption
+  term: 保管時の暗号化（RDS）
+  short: 保存してあるデータを、暗号にして守る設定
+  body: Amazon RDS の暗号化したDBインスタンスは、AES-256 で保存データを暗号化します。基盤のストレージ、ログ、自動バックアップ、リードレプリカ、スナップショットが暗号化され、保存時の暗号化の要件を満たすのに使えます。暗号化したインスタンスの KMS キーは、作成後に変更できません。
+  play: 構築画面の RDS の「暗号化」で有効にします。通信の暗号化（HTTPS）とは別の話です。
+  sources:
+    - { title: 'Encrypting Amazon RDS resources', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Overview.Encryption.html', checkedAt: '2026-11-17' }
+  review: { status: verified, verifiedAt: '2026-11-17' }

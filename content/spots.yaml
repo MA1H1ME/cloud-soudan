@@ -250,3 +250,29 @@
     - { id: standby, label: マルチ AZ にして、スタンバイに集計を任せる, patch: { slots: { data-c: rds-standby } } }
     - { id: replica, label: リードレプリカを追加して、集計はそこで読む, patch: { slots: { data-c: rds-replica } } }
     - { id: ec2, label: Web サーバーをもう1台増やす, patch: { slots: { app-c: ec2 } } }
+- id: spot-lab-results
+  conceptId: rds-encryption
+  guest: 小野さん
+  business: 検査会社の結果照会サイト
+  voice: 来月、取引先の審査があります。データを保存するところは暗号化されていますか、と聞かれているのですが…
+  goal: 審査で指摘を受けないこと
+  plan: { visitsPerDay: 500, budget: 30000, uptimeTarget: 0.98, events: [{ day: 15, type: encryption-audit, label: 取引先の審査（保管時の暗号化） }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false, encryptDb: false }
+  avoid: [db-unencrypted]
+  options:
+    - { id: enc, label: データベースの暗号化を有効にする, patch: { encryptDb: true } }
+    - { id: https, label: 通信は HTTPS にしてあるので、十分だと答える, patch: {} }
+    - { id: replica, label: リードレプリカを追加して、データを複製しておく, patch: { slots: { data-c: rds-replica } } }
+- id: spot-school-grades
+  conceptId: rds-encryption
+  guest: 村上さん
+  business: 学習塾の成績管理
+  voice: 保護者の個人情報が入っているので、自治体の監査で「保存データの暗号化」を確認すると言われました。バックアップも対象ですか？
+  goal: 監査で指摘を受けないこと。予算は ¥20,000 まで
+  plan: { visitsPerDay: 300, budget: 20000, uptimeTarget: 0.98, events: [{ day: 20, type: encryption-audit, label: 自治体の監査（保管時の暗号化） }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false, encryptDb: false }
+  avoid: [db-unencrypted]
+  options:
+    - { id: enc, label: 暗号化を有効にする（バックアップも暗号化される）, patch: { encryptDb: true } }
+    - { id: sg, label: セキュリティグループを絞るだけにする, patch: {} }
+    - { id: standby, label: マルチ AZ にして、別のAZにも置く, patch: { slots: { data-c: rds-standby } } }

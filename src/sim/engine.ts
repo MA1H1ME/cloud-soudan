@@ -17,7 +17,7 @@ export const RULE_IDS = [
   'db-exposed', 'db-private',
   's3-public-leak', 's3-presigned-private', 'cred-access-key', 'cred-role-broad', 'cred-role-scoped',
   's3-website-no-https', 'cf-https-oac', 'cf-edge-cache', 'static-ec2-overload', 'static-on-ec2', 's3-lifecycle', 's3-no-lifecycle',
-  'db-replica-read', 'db-read-bottleneck',
+  'db-replica-read', 'db-read-bottleneck', 'db-encrypted', 'db-unencrypted',
 ] as const;
 export type RuleId = (typeof RULE_IDS)[number];
 
@@ -180,6 +180,16 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint,
       else {
         fire('db-read-bottleneck', ev.day, ev.label);
         for (let i = ev.day - 1; i < Math.min(DAYS, ev.day - 1 + (ev.days ?? 3)); i++) dbSlow[i] = true;
+      }
+      continue;
+    }
+    if (ev.type === 'encryption-audit') {
+      // 保管時の暗号化の審査。暗号化していなければ指摘を受け、導入が遅れる
+      if (bp.encryptDb) fire('db-encrypted', ev.day, ev.label);
+      else {
+        breached = true;
+        fire('db-unencrypted', ev.day, ev.label);
+        penalty += 2 * profitPerVisit * plan.visitsPerDay;
       }
       continue;
     }

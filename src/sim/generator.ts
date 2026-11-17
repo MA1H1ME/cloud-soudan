@@ -50,7 +50,7 @@ export function rng(seed: number) {
 
 const BASE: Blueprint = {
   slots: { public: null, 'app-a': 'ec2', 'app-c': null, 'data-a': 'rds', 'data-c': null },
-  backup: true, autoScaling: false, dbPublic: false, dbSgOpen: false, s3Public: false,
+  backup: true, autoScaling: false, encryptDb: false, dbPublic: false, dbSgOpen: false, s3Public: false,
   site: 'none', lifecycle: false, credential: 'role-scoped',
 };
 
@@ -67,7 +67,9 @@ export function candidates(kind: JobKind, unlocked: (p: PartType) => boolean): B
         if (dataC && !unlocked(dataC)) continue;
         for (const backup of [false, true]) {
           for (const autoScaling of pub ? [false, true] : [false]) {
-            out.push({ ...BASE, slots: { ...BASE.slots, public: pub, 'app-c': appC, 'data-c': dataC }, backup, autoScaling });
+            for (const encryptDb of [false, true]) {
+              out.push({ ...BASE, slots: { ...BASE.slots, public: pub, 'app-c': appC, 'data-c': dataC }, backup, autoScaling, encryptDb });
+            }
           }
         }
       }
@@ -164,10 +166,11 @@ function tryGenerate(seed: number, salt: number, t: JobTemplates, stage: number,
     visitsPerDay = r.int(5, 16) * 100;
     start = { ...BASE, backup: r.chance(0.5) };
     const files = kind === 'files' && 'file' in tpl;
-    const prefer = { performance: ['peak'], reliability: ['failure'], security: files ? ['audit', 'probe'] : ['probe'], cost: [] }[priority];
-    // 読み込みの急増（リードレプリカで受ける）は、レプリカを使える段階3から
+    const prefer = { performance: ['peak'], reliability: ['failure'], security: files ? ['audit', 'probe', 'enc'] : ['probe', 'enc'], cost: [] }[priority];
+    // 読み込みの急増（リードレプリカで受ける）は、レプリカを使える段階3から。暗号化の審査は段階2から
     const reads = stage >= 3 ? ['reads'] : [];
-    const aspects = choose(files ? ['bucket'] : [], prefer, files ? ['peak', 'failure', 'probe', 'audit', ...reads] : ['peak', 'failure', 'probe', ...reads]);
+    const enc = stage >= 2 ? ['enc'] : [];
+    const aspects = choose(files ? ['bucket'] : [], prefer.filter((x) => x !== 'enc' || stage >= 2), files ? ['peak', 'failure', 'probe', 'audit', ...reads, ...enc] : ['peak', 'failure', 'probe', ...reads, ...enc]);
     if (aspects.includes('peak')) {
       const peak = 'peak' in tpl ? r.pick(tpl.peak) : '繁忙期';
       const factor = r.pick([1.6, 2, 2.4]);
@@ -184,6 +187,10 @@ function tryGenerate(seed: number, salt: number, t: JobTemplates, stage: number,
       const label = r.pick(['月末の売上集計', '在庫の棚卸し', '年間レポートの作成']);
       events.push({ day: r.int(22, 26), type: 'read-surge', label, days: 3 });
       req('reads', 'reads', `${label}で、データベースの読み込みが3日間増える`);
+    }
+    if (aspects.includes('enc')) {
+      events.push({ day: r.int(18, 26), type: 'encryption-audit', label: '導入先の審査（保管時の暗号化）' });
+      req('encryption', 'encryption', '保存データ（DBの記録とバックアップ）を暗号化すること');
     }
     if (aspects.includes('probe')) {
       events.push({ day: r.int(20, 27), type: 'probe', label: 'データベースへの不審なアクセス' });

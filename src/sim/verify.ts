@@ -57,6 +57,10 @@ function judge(check: CheckType, bp: Blueprint, plan: MonthPlan, profitPerVisit:
       return bp.slots['data-c'] === 'rds-replica'
         ? { ok: true, detail: 'リードレプリカが読み取りを受けるので、集計で本体が重くなりません' }
         : { ok: false, detail: bp.slots['data-c'] === 'rds-standby' ? 'スタンバイは読み取りに使えません。集計の読み込みは本体にかかります' : '読み取りを受ける複製がなく、集計の読み込みは本体にかかります' };
+    case 'encryption':
+      return bp.encryptDb
+        ? { ok: true, detail: 'データベースの保管時の暗号化が有効です' }
+        : { ok: false, detail: 'データベースの保管時の暗号化が無効で、暗号化を求める審査を通りません' };
     case 'secure-db':
       return dbExposed(bp)
         ? { ok: false, detail: 'パブリックアクセスが有効で、セキュリティグループが 0.0.0.0/0 からの接続を許可しています' }

@@ -26,3 +26,6 @@
 - id: s3-storage-classes
   title: S3 のストレージクラスとライフサイクル
   domain: cost
+- id: rds-encryption
+  title: RDS の保存データを暗号化する
+  domain: secure
