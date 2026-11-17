@@ -107,6 +107,9 @@ interface SaveState {
   /** 効果音 */
   sound: boolean;
   setSound: (on: boolean) => void;
+  /** BGM */
+  music: boolean;
+  setMusic: (on: boolean) => void;
   /** セーブを丸ごと読み込む（引き継ぎ用） */
   importSave: (data: Partial<SaveState>) => void;
   customers: Record<string, CustomerSave>;
@@ -241,6 +244,8 @@ export const useSave = create<SaveState>()(
         notifyIncome: (text) => set({ income: text }),
         sound: true,
         setSound: (on) => { setSoundEnabled(on); set({ sound: on }); },
+        music: true,
+        setMusic: (on) => set({ music: on }),
         hire: (kind) => {
           const st = get();
           const s = STAFF[kind];

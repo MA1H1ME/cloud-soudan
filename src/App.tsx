@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { useRoute } from './router';
+import { bgm } from './sound';
+import { useSave } from './store';
 import { Title } from './screens/Title';
 import { Opening } from './screens/Opening';
 import { Floor } from './screens/Floor';
@@ -19,10 +22,24 @@ import { TermSheet } from './components/Term';
 export function App() {
   return (
     <>
+      <Bgm />
       <Transition />
       <TermSheet />
     </>
   );
+}
+
+/** BGM：設定がオンなら、会社があるときに流す（障害の対応中は曲が変わる。切り替えは Floor が行う） */
+function Bgm() {
+  const music = useSave((s) => s.music);
+  const hasCompany = useSave((s) => Boolean(s.company));
+  useEffect(() => {
+    bgm.setEnabled(music);
+    if (music && hasCompany) bgm.set('calm');
+    else bgm.set('off');
+    return () => bgm.set('off');
+  }, [music, hasCompany]);
+  return null;
 }
 
 /** 画面ごとに切り替えの演出をかける（月次報告は暗転、ほかは横から入る） */
