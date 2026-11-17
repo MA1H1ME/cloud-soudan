@@ -238,6 +238,7 @@ export function Floor() {
           { label: `メール${unread ? `（${unread}）` : ''}`, on: () => go({ name: 'mail' }) },
           { label: '会社（社員・ラック・ランク）', on: () => go({ name: 'company' }) },
           { label: '学習記録', on: () => go({ name: 'record' }) },
+          { label: '模擬試験', on: () => go({ name: 'exam' }) },
           { label: '用語図鑑', on: () => go({ name: 'glossary' }) },
           { label: '先輩の案内をもう一度見る', on: () => { state.resetTips(); setMenu(false); } },
           { label: `効果音：${state.sound ? 'オン' : 'オフ'}`, on: () => state.setSound(!state.sound) },

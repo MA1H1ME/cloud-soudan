@@ -8,6 +8,7 @@ import { addDays, enqueue, gameDate, INTERVAL_DAYS, onReviewAnswered, pickDueRev
 import { DAYS, runMonth, type Grade, type MonthResult } from './sim/engine';
 import { verify } from './sim/verify';
 import { setSoundEnabled, sfx } from './sound';
+import type { ExamScore } from './exam';
 import { GRADE_FEE, REFERRAL_EXTRA_DAYS, REFERRAL_FEE, START_REPUTATION, nextReputation, tierIndex, tierOf } from './reputation';
 import { GEAR, MAX_RACKS, PAYDAY, REBUILD_CASH, START_CASH, START_RACKS, STAFF, rackPrice, salesFeeMult, salesMailBonus, settlePayday, type StaffKind, type StaffLevels } from './economy';
 import { LOCKED_SLOTS } from './sim/parts';
@@ -104,6 +105,10 @@ interface SaveState {
   /** フロアに戻ったときに出す入金の知らせ（一度出したら消す） */
   income: string | null;
   notifyIncome: (text: string | null) => void;
+  /** 模擬試験の成績（新しいものが後ろ） */
+  exams: { day: string; score: ExamScore }[];
+  /** 模擬試験を終えた：間違えた学習項目は翌日の復習に入れ、出会ったルールを記録する */
+  finishExam: (score: ExamScore, failedConceptIds: string[], firedRuleIds: string[]) => void;
   /** 効果音 */
   sound: boolean;
   setSound: (on: boolean) => void;
@@ -242,6 +247,19 @@ export const useSave = create<SaveState>()(
         lastPay: null,
         income: null,
         notifyIncome: (text) => set({ income: text }),
+        exams: [],
+        finishExam: (score, failedConceptIds, firedRuleIds) => {
+          const st = get();
+          const day = today();
+          const review = { ...st.review };
+          for (const conceptId of new Set(failedConceptIds)) {
+            const prev = review[conceptId];
+            review[conceptId] = prev && !prev.mastered
+              ? { ...prev, stage: 1, lapses: prev.lapses + 1, dueOn: addDays(day, INTERVAL_DAYS[1]) }
+              : prev ?? enqueue(conceptId, 'exam', 1, day);
+          }
+          set({ review, seenRules: [...new Set([...st.seenRules, ...firedRuleIds])], exams: [...st.exams, { day, score }].slice(-30) });
+        },
         sound: true,
         setSound: (on) => { setSoundEnabled(on); set({ sound: on }); },
         music: true,
@@ -274,7 +292,7 @@ export const useSave = create<SaveState>()(
           set({ staff: { ops: 0, sales: 0 }, company: { ...st.company, cash: REBUILD_CASH }, lastPay: null });
         },
         importSave: (data) => set({ ...data }),
-        newGame: (name) => set({ reputation: START_REPUTATION, staff: { ops: 0, sales: 0 }, gear: [], encountered: [], learned: [], revenue: 0, endingSeen: false, seenRank: 0, lastPay: null, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
+        newGame: (name) => set({ exams: [], reputation: START_REPUTATION, staff: { ops: 0, sales: 0 }, gear: [], encountered: [], learned: [], revenue: 0, endingSeen: false, seenRank: 0, lastPay: null, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
         answerSpot: (spotId, passed, firedRuleIds, practice) => {
           const spot = content.spots.find((x) => x.id === spotId);
           const st = get();

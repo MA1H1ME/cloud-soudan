@@ -1,6 +1,6 @@
 // 学習記録：分野ごとの進み具合、復習の予定、出会ったルールの読み返し、練習。
 import { useState } from 'react';
-import { content, ruleById } from '../content';
+import { conceptById, content, ruleById } from '../content';
 import { RuleSources } from '../components/RuleSources';
 import { Screen } from '../components/ui';
 import { INTERVAL_DAYS } from '../engine/review';
@@ -20,8 +20,40 @@ export function Record() {
   const day = today();
   const simConcepts = content.concepts.filter((c) => content.rules.some((r) => r.conceptId === c.id));
 
+  // 弱点：つまずいた回数が多い順。模擬試験で間違えた項目も、つまずきに数える
+  const weak = Object.values(state.review)
+    .filter((item) => item.lapses > 0 && !item.mastered && conceptById.has(item.conceptId))
+    .sort((a, b) => b.lapses - a.lapses || a.dueOn.localeCompare(b.dueOn))
+    .slice(0, 3);
+  const lastExam = state.exams.at(-1);
+
   return (
     <Screen title="学習記録">
+      <section className="space-y-2 rounded-xl border-2 border-teal-600 bg-teal-50 px-3 py-3 text-sm">
+        <p className="font-bold text-slate-900">模擬試験</p>
+        <p className="text-xs text-slate-700">{lastExam ? `前回（${lastExam.day}）：${lastExam.score.correct}／${lastExam.score.total}問。` : ''}10問を時間内に解き、分野ごとの正答率を見ます。</p>
+        <button type="button" onClick={() => go({ name: 'exam' })} className="min-h-11 w-full rounded bg-teal-700 py-2 font-bold text-white">模擬試験を受ける</button>
+      </section>
+
+      {weak.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-bold text-slate-700">苦手な項目（おすすめの復習）</h2>
+          <ul className="space-y-2">
+            {weak.map((item) => {
+              const c = conceptById.get(item.conceptId)!;
+              const spot = content.spots.find((s) => s.conceptId === item.conceptId);
+              return (
+                <li key={item.conceptId} className="rounded-xl border border-red-300 px-3 py-2 text-sm">
+                  <p className="font-bold text-slate-900">{c.title}</p>
+                  <p className="text-xs text-slate-600">つまずいた回数 {item.lapses}回</p>
+                  {spot && <button type="button" onClick={() => go({ name: 'spot', spotId: spot.id, practice: true })} className="mt-1 min-h-11 rounded-full border border-slate-400 px-3 text-xs text-slate-800">練習する：{spot.business}</button>}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       <section>
         <h2 className="mb-2 text-sm font-bold text-slate-700">試験の分野ごとの進み具合</h2>
         <ul className="space-y-2">
