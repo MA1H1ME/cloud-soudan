@@ -26,6 +26,8 @@ export interface IncidentOption {
 
 export interface Incident {
   key: string;
+  /** 出来事の名前（予報に使う） */
+  label: string;
   /** 対応の種類。一度正しく答えた種類は、運用担当が代わりに対応できる */
   type: string;
   day: number;
@@ -48,7 +50,7 @@ function spikeOverload(ev: Ev, plan: MonthPlan, base: number): boolean {
 }
 
 /** その出来事で判断が要るなら、障害対応の問いを返す */
-export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprint, base: number, scaling: boolean): Incident | null {
+function incidentForRaw(ev: Ev, index: number, plan: MonthPlan, bp: Blueprint, base: number, scaling: boolean): Omit<Incident, 'label'> | null {
   const key = `${index}`;
   const day = ev.day;
   if (bp.site !== 'none') return null;
@@ -145,6 +147,12 @@ export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprin
     };
   }
   return null;
+}
+
+/** 判断が要る出来事なら、問いを返す（出来事の名前つき） */
+export function incidentFor(ev: Ev, index: number, plan: MonthPlan, bp: Blueprint, base: number, scaling: boolean): Incident | null {
+  const inc = incidentForRaw(ev, index, plan, bp, base, scaling);
+  return inc ? { ...inc, label: ev.label } : null;
 }
 
 export function chosen(inc: Incident, responses: Responses): IncidentOption {

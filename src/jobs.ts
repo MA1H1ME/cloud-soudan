@@ -48,11 +48,11 @@ export const isStory = (id: string) => simByCustomer.has(id);
 
 /**
  * その日に届く案件メール。日付と段階から決まる。
- * 慣れるまで（early）は1日1件、そのあとは2〜3件（営業担当がいれば＋1）。同じ業種・種類・難しさの案件は1日に1件まで。
+ * 慣れるまで（early）は1日1件、そのあとは2〜3件（営業担当の等級で増える）。同じ業種・種類・難しさの案件は1日に1件まで。
  */
-export function mailsForDay(day: number, stage: number, sales = false, early = false): string[] {
+export function mailsForDay(day: number, stage: number, extra = 0, early = false): string[] {
   const r = rng(day * 9973 + 17);
-  const n = early ? 1 : r.int(2, 3) + (sales ? 1 : 0);
+  const n = early ? 1 : r.int(2, 3) + extra;
   const out: string[] = [];
   const seen = new Set<string>();
   for (let i = 0; i < 10 && out.length < n; i++) {

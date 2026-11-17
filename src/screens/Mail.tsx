@@ -5,7 +5,7 @@ import { spotById } from '../content';
 import { Screen, yen } from '../components/ui';
 import { go } from '../router';
 import { businessFor, jobFor, nameFor } from '../jobs';
-import { MAX_RACKS, RACK_PRICE, SPOT_REWARD, dueSpots, inbox, onRacks, pendingRequests, useSave } from '../store';
+import { MAX_RACKS, SPOT_REWARD, rackPrice, dueSpots, inbox, onRacks, pendingRequests, useSave } from '../store';
 import type { SimCustomer } from '../sim/schema';
 
 const PRIORITY = { security: 'セキュリティ', reliability: '止まらないこと', performance: '速さ', cost: 'コスト' } as const;
@@ -42,9 +42,9 @@ export function Mail() {
       <section className="flex items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-sm">
         <span>空きラック <b className={free > 0 ? 'text-emerald-700' : 'text-red-700'}>{free}</b>／{state.racks}台</span>
         {state.racks < MAX_RACKS ? (
-          <button type="button" disabled={cash < RACK_PRICE} onClick={() => confirm(`ラックを1台増設しますか？（${yen(RACK_PRICE)}）`) && state.buyRack()}
+          <button type="button" disabled={cash < rackPrice(state.racks)} onClick={() => confirm(`ラックを1台増設しますか？（${yen(rackPrice(state.racks))}）`) && state.buyRack()}
             className="rounded border border-slate-400 px-2 py-1 text-xs disabled:opacity-40">
-            ラックを増設 {yen(RACK_PRICE)}
+            ラックを増設 {yen(rackPrice(state.racks))}
           </button>
         ) : <span className="text-xs text-slate-500">これ以上は置けません</span>}
       </section>
