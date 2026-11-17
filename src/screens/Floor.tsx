@@ -9,7 +9,7 @@ import { Term } from '../components/Term';
 import type { Blueprint, PartType } from '../sim/schema';
 import { ticketsFrom } from '../sim/tickets';
 import {
-  MAIL_STAGE, RANKS, STAFF, calendar, rankOf, customerSave, dayOf, dueSpots, inbox, onRacks, pastResults, pendingRequests, planFor, runningResult, unlockStage, useSave,
+  MAIL_STAGE, RANKS, STAFF, calendar, canOpsHandle, isBankrupt, nextPayday, payroll, salesFeeMult, rankOf, customerSave, dayOf, dueSpots, inbox, onRacks, pastResults, pendingRequests, planFor, runningResult, unlockStage, useSave,
   type CustomerSave,
 } from '../store';
 import { Desk, MONO, Person, PX, Tiles } from '../components/pixel';
@@ -120,10 +120,12 @@ export function Floor() {
   }, [mails.length]);
 
   useEffect(() => {
-    const r = racksOf(useSave.getState()).find((x) => x.blocking && useSave.getState().staff.ops && useSave.getState().learned.includes(x.blocking.type));
+    const st = useSave.getState();
+    const r = racksOf(st).find((x) => x.blocking && canOpsHandle(st, x.blocking.type));
     if (!r?.blocking) return;
     const good = r.blocking.options.find((o) => o.good)!;
-    useSave.getState().respond(r.id, r.blocking.key, good.id, { type: r.blocking.type, good: true });
+    // 社員が対応しても、あなたの「覚えた障害対応」は増えない（自分で解いたときだけ増える）
+    st.respond(r.id, r.blocking.key, good.id);
     sfx.good();
     setToast(`🧑‍💻 運用担当の${STAFF.ops.name}さんが対応：${good.label}`);
     const t = setTimeout(() => setToast(null), 2600);
@@ -149,7 +151,7 @@ export function Floor() {
   const lastPayKey = useRef(payKey);
   useEffect(() => {
     if (payKey && payKey !== lastPayKey.current && state.lastPay) {
-      setToast(`💴 給料日：社員に ${yen(state.lastPay.amount)} を払いました`);
+      setToast(state.lastPay.interest > 0 ? `💴 給料日：給料 ${yen(state.lastPay.amount)}、利息 ${yen(state.lastPay.interest)} を払いました` : `💴 給料日：社員に ${yen(state.lastPay.amount)} を払いました`);
       const t = setTimeout(() => setToast(null), 2600);
       lastPayKey.current = payKey;
       return () => clearTimeout(t);
@@ -203,7 +205,7 @@ export function Floor() {
     if (storyDone && !state.endingSeen) go({ name: 'ending' });
   }, [storyDone, state.endingSeen]);
   // 運用担当がいれば、前に正しく対応できた種類の障害は代わりに対応する
-  const canDelegate = (inc?: Incident) => Boolean(inc && state.staff.ops && state.learned.includes(inc.type));
+  const canDelegate = (inc?: Incident) => Boolean(inc && canOpsHandle(state, inc.type));
   const blockingRack = racks.find((r) => r.blocking && !canDelegate(r.blocking));
   const blockingKey = blockingRack ? `${blockingRack.id}-${blockingRack.blocking!.key}` : '';
   useEffect(() => { if (blockingKey) sfx.alarm(); }, [blockingKey]);
@@ -261,9 +263,12 @@ export function Floor() {
   const idleWithWork = racks.every((r) => !r.save.running) && (unread > 0 || racks.length > 0);
   const lineFor = (id: string) =>
     id === 'senpai' ? nextStep
-      : id === 'ops' ? `任せてください。覚えた障害対応は${state.learned.length}種類。その種類なら、私が代わりに対応します。`
-        : id === 'sales' ? `案件メール、集めてきました！ 未読は${unread}件です。`
+      : id === 'ops' ? (state.staff.ops >= 2 ? `出会った障害は${state.encountered.length}種類、全部見ています。お任せください。` : `任せてください。あなたが覚えた障害対応は${state.learned.length}種類。その種類なら、私が代わりに対応します。`)
+        : id === 'sales' ? `案件メール、集めてきました！ 未読は${unread}件です。報酬は${Math.round((salesFeeMult(state.staff.sales) - 1) * 100)}%増しで交渉しています。`
           : `${calendar(state.clock).label}。ラックは${racks.length}／${state.racks}台が稼働中。`;
+
+  // 監視モニターがあると、今月の判断が要る出来事を日ごとに予報する
+  const forecast = main?.save.running && plan ? monthIncidents(plan, main.save.running).filter((x) => x.day > day).map((x) => ({ day: x.day, label: x.label })) : [];
 
   // ラックの並び（台数に合わせて幅を変える）
   const rw = Math.min(56, Math.floor((W - 16 - (state.racks - 1) * 6) / state.racks));
@@ -279,6 +284,16 @@ export function Floor() {
       </header>
       <p className="truncate px-3 py-1 text-[11px] text-slate-300" style={{ background: '#1b2333' }}>{company.name}（{RANKS[rank]!.name}）　ラック {racks.length}／{state.racks}</p>
       {menuSheet}
+      {company.cash < 0 && (
+        <button type="button" onClick={() => { setSpeed(0); go({ name: 'company' }); }} className="block w-full border-y-2 border-red-700 bg-red-950 px-3 py-2 text-left text-xs text-red-100">
+          ⚠ 資金がマイナスです（{yen(company.cash)}）。給料日ごとに利息がかかります。契約料が入るまで、雇用や設備は買えません。
+        </button>
+      )}
+      {company.cash >= 0 && payroll(state.staff) > 0 && company.cash < payroll(state.staff) && nextPayday(state.clock) - state.clock <= 7 && (
+        <button type="button" onClick={() => { setSpeed(0); go({ name: 'company' }); }} className="block w-full border-y-2 border-amber-600 bg-amber-950 px-3 py-2 text-left text-xs text-amber-100">
+          ⚠ 給料日まであと{nextPayday(state.clock) - state.clock}日。給料 {yen(payroll(state.staff))} に対して、手元の資金 {yen(company.cash)} では足りません。
+        </button>
+      )}
 
       <div className="relative">
         <svg viewBox={`0 0 ${W} ${H}`} className="pixel block w-full" role="img" aria-label="会社のフロア">
@@ -287,6 +302,12 @@ export function Floor() {
           <rect x="0" y="112" width="128" height="8" fill={PX.wall} />
           <rect x="160" y="112" width="128" height="8" fill={PX.wall} />
           {/* 机は4つ：あなた・鷹野先輩・運用担当・営業担当。雇っていない席は空席 */}
+          {state.gear.includes('monitor') && (
+            <g aria-label="監視モニター">
+              <rect x="100" y="2" width="56" height="16" fill="#0b1020" stroke={PX.deskD} strokeWidth="2" />
+              <path d="M104 14l8 -6l8 4l8 -8l8 6l8 -2l8 4" fill="none" stroke={PX.g} strokeWidth="1.5" />
+            </g>
+          )}
           {OFFICE.map((o) => <Desk key={o.id} x={o.x} y={22} />)}
           {OFFICE.map((o) => {
             const present = o.id === 'you' || o.id === 'senpai' || state.staff[o.id as 'ops' | 'sales'];
@@ -301,7 +322,7 @@ export function Floor() {
                   <Person x={o.x + 19} y={running ? 72 : 46} shirt={o.shirt} />
                   {running && <g className="bob"><rect x={o.x + 21} y="56" width="12" height="12" fill={PX.y} /><text x={o.x + 27} y="66" textAnchor="middle" fontSize="11" fontWeight="700" fill={PX.ink}>!</text></g>}
                 </g>
-                <rect x={o.x + 6} y={running ? 98 : 72} width="36" height="11" fill={o.id === 'you' ? PX.btn : PX.box} opacity="0.85" />
+                <rect x={o.x + 1} y={running ? 98 : 72} width="46" height="11" fill={o.id === 'you' ? PX.btn : PX.box} opacity="0.85" />
                 <text x={o.x + 24} y={running ? 106 : 80} textAnchor="middle" fontSize="7.5" fill={PX.w}>{o.id === 'you' ? '▼あなた' : o.name}</text>
                 <rect x={o.x + 8} y={running ? 70 : 44} width="32" height="40" fill="transparent" />
               </g>
@@ -416,6 +437,11 @@ export function Floor() {
           <p className="text-[11px] text-slate-300">
             予算 {yen(plan.budget)}／稼働率 {(plan.uptimeTarget * 100).toFixed(1)}%以上／1日の訪問 {plan.visitsPerDay.toLocaleString('ja-JP')}
           </p>
+          {state.gear.includes('monitor') && main.save.running && forecast.length > 0 && (
+            <p className="border border-cyan-500 px-2 py-1 text-xs text-cyan-100">
+              📡 予報：{forecast.map((f) => `${f.day}日ごろ ${f.label}`).join('／')}
+            </p>
+          )}
           {result && (
             <p className="text-xs text-slate-300" style={{ fontFamily: MONO }}>
               {name}さん {day}/30日　お客さんの売上 <span className="font-bold text-yellow-300">{yen(result.earnedByDay.slice(0, day).reduce((a, b) => a + b, 0))}</span>　月額 {yen(result.fixedCost)}
@@ -462,6 +488,18 @@ export function Floor() {
         </nav>
         <p className="px-3 pb-2 text-center text-[10px] text-slate-500">金額や処理能力はゲーム内の値です。</p>
       </div>
+
+      {isBankrupt(company.cash) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 px-6" role="dialog" aria-modal="true" aria-label="倒産">
+          <section className="sheet-in w-full max-w-xs space-y-3 border-4 border-red-600 px-4 py-5 text-white" style={{ background: PX.box }}>
+            <p className="text-center text-xs text-red-300" style={{ fontFamily: MONO }}>資金ショート</p>
+            <p className="text-center text-lg font-bold">会社が立ち行かなくなりました</p>
+            <p className="text-sm leading-relaxed text-slate-200">資金が {yen(company.cash)} まで落ち込みました。ここから立て直せます。社員は全員辞めますが、お客さんとの契約と、あなたが覚えたことはそのまま残ります。</p>
+            <p className="text-xs text-slate-400">再建すると、資金は {yen(50000)} になります。</p>
+            <button type="button" onClick={() => { sfx.bad(); state.rebuild(); }} className="min-h-12 w-full py-2 font-bold text-slate-900" style={{ background: PX.y }}>会社を立て直す</button>
+          </section>
+        </div>
+      )}
 
       {celebrate !== null && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/80 px-6" role="dialog" aria-modal="true" aria-label="ランクアップ">
