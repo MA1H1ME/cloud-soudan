@@ -9,7 +9,7 @@ import { Term } from '../components/Term';
 import type { Blueprint, PartType } from '../sim/schema';
 import { ticketsFrom } from '../sim/tickets';
 import {
-  MAIL_STAGE, RANKS, STAFF, calendar, canOpsHandle, isBankrupt, nextPayday, payroll, salesFeeMult, tierOf, rankOf, customerSave, dayOf, dueSpots, inbox, onRacks, pastResults, pendingRequests, planFor, runningResult, unlockStage, useSave,
+  MAIL_STAGE, RANKS, STAFF, calendar, canOpsHandle, factsOf, isBankrupt, nextPayday, payroll, salesFeeMult, tierOf, rankOf, customerSave, dayOf, dueSpots, inbox, onRacks, pastResults, pendingRequests, planFor, runningResult, unlockStage, useSave,
   type CustomerSave,
 } from '../store';
 import { Desk, MONO, Person, PX, Tiles } from '../components/pixel';
@@ -17,6 +17,7 @@ import { yen } from '../components/ui';
 import { Senpai, SenpaiLine } from '../components/Senpai';
 import { isStory, jobFor, nameFor, simFor } from '../jobs';
 import { bgm, sfx } from '../sound';
+import { ACHIEVEMENTS, doneIds } from '../achievements';
 
 const SECONDS_PER_DAY = 0.5;
 const W = 288, H = 300;
@@ -153,6 +154,22 @@ export function Floor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rank, state.seenRank]);
 
+  // 実績：新しく達成したら知らせる。古いセーブでは、最初に開いたときに達成済みのものを静かに記録する
+  const doneNow = doneIds(factsOf(state));
+  const doneKey = doneNow.join(',');
+  useEffect(() => {
+    if (!state.company) return;
+    if (state.achieved === undefined) { state.setAchieved(doneNow); return; }
+    const fresh = doneNow.filter((id) => !state.achieved!.includes(id));
+    if (fresh.length === 0) return;
+    state.setAchieved(doneNow);
+    sfx.fanfare();
+    setToast(`🏆 実績：${fresh.map((id) => ACHIEVEMENTS.find((a) => a.id === id)?.title).join('、')}`);
+    const t = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doneKey]);
+
   // 給料日を知らせる
   const payKey = state.lastPay ? `${state.lastPay.day}` : '';
   const lastPayKey = useRef(payKey);
@@ -237,6 +254,7 @@ export function Floor() {
         {[
           { label: `メール${unread ? `（${unread}）` : ''}`, on: () => go({ name: 'mail' }) },
           { label: '会社（社員・ラック・ランク）', on: () => go({ name: 'company' }) },
+          { label: '実績', on: () => go({ name: 'achievements' }) },
           { label: '学習記録', on: () => go({ name: 'record' }) },
           { label: '模擬試験', on: () => go({ name: 'exam' }) },
           { label: '用語図鑑', on: () => go({ name: 'glossary' }) },

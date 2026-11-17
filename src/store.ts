@@ -9,6 +9,8 @@ import { DAYS, runMonth, type Grade, type MonthResult } from './sim/engine';
 import { verify } from './sim/verify';
 import { setSoundEnabled, sfx } from './sound';
 import type { ExamScore } from './exam';
+import { type Facts } from './achievements';
+import { INCIDENT_TYPES } from './sim/incidents';
 import { GRADE_FEE, REFERRAL_EXTRA_DAYS, REFERRAL_FEE, START_REPUTATION, nextReputation, tierIndex, tierOf } from './reputation';
 import { GEAR, MAX_RACKS, PAYDAY, REBUILD_CASH, START_CASH, START_RACKS, STAFF, rackPrice, salesFeeMult, salesMailBonus, settlePayday, type StaffKind, type StaffLevels } from './economy';
 import { LOCKED_SLOTS } from './sim/parts';
@@ -105,6 +107,9 @@ interface SaveState {
   /** フロアに戻ったときに出す入金の知らせ（一度出したら消す） */
   income: string | null;
   notifyIncome: (text: string | null) => void;
+  /** 祝った実績（古いセーブでは未設定。最初に開いたときに、いま達成済みのものを静かに記録する） */
+  achieved?: string[];
+  setAchieved: (ids: string[]) => void;
   /** 模擬試験の成績（新しいものが後ろ） */
   exams: { day: string; score: ExamScore }[];
   /** 模擬試験を終えた：間違えた学習項目は翌日の復習に入れ、出会ったルールを記録する */
@@ -247,6 +252,7 @@ export const useSave = create<SaveState>()(
         lastPay: null,
         income: null,
         notifyIncome: (text) => set({ income: text }),
+        setAchieved: (ids) => set({ achieved: ids }),
         exams: [],
         finishExam: (score, failedConceptIds, firedRuleIds) => {
           const st = get();
@@ -292,7 +298,7 @@ export const useSave = create<SaveState>()(
           set({ staff: { ops: 0, sales: 0 }, company: { ...st.company, cash: REBUILD_CASH }, lastPay: null });
         },
         importSave: (data) => set({ ...data }),
-        newGame: (name) => set({ exams: [], reputation: START_REPUTATION, staff: { ops: 0, sales: 0 }, gear: [], encountered: [], learned: [], revenue: 0, endingSeen: false, seenRank: 0, lastPay: null, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
+        newGame: (name) => set({ achieved: [], exams: [], reputation: START_REPUTATION, staff: { ops: 0, sales: 0 }, gear: [], encountered: [], learned: [], revenue: 0, endingSeen: false, seenRank: 0, lastPay: null, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
         answerSpot: (spotId, passed, firedRuleIds, practice) => {
           const spot = content.spots.find((x) => x.id === spotId);
           const st = get();
@@ -515,3 +521,32 @@ export function canOpsHandle(state: Pick<SaveState, 'staff' | 'learned' | 'encou
 
 /** 次の給料日（会社の暦で何日目か） */
 export const nextPayday = (clock: number) => (Math.floor((clock - 1) / PAYDAY) + 1) * PAYDAY + 1;
+
+/** 実績の判定に使う、会社の状態のまとめ */
+export function factsOf(state: SaveState): Facts {
+  let bestMonths = 0;
+  let halfBudgetBest = false;
+  for (const id of state.accepted) {
+    const sim = simFor(id), save = customerSave(state, id);
+    if (!sim || !save) continue;
+    for (const p of pastResults(sim, save)) {
+      if (p.result.grade !== 'best') continue;
+      bestMonths++;
+      const plan = planFor(sim, p.month);
+      if (plan && p.result.cost <= plan.budget / 2) halfBudgetBest = true;
+    }
+  }
+  return {
+    bestMonths, halfBudgetBest,
+    jobsAccepted: state.accepted.filter((id) => id.startsWith('job-')).length,
+    learned: state.learned.length, learnedTotal: INCIDENT_TYPES.length,
+    rank: rankOf(state.revenue), staff: state.staff,
+    staffMax: { ops: STAFF.ops.maxLevel, sales: STAFF.sales.maxLevel },
+    gear: state.gear.length, racks: state.racks, maxRacks: MAX_RACKS,
+    reputation: state.reputation,
+    examBest: state.exams.reduce((m, e) => Math.max(m, e.score.correct / Math.max(1, e.score.total)), 0),
+    examCount: state.exams.length,
+    seenRules: state.seenRules.length, rulesTotal: content.rules.length,
+    ending: state.endingSeen, revenue: state.revenue,
+  };
+}

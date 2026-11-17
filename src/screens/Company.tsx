@@ -132,6 +132,7 @@ export function CompanyScreen() {
           ) : <span className="text-xs text-slate-500">満杯です</span>}
         </div>
       </section>
+      <button type="button" onClick={() => go({ name: 'achievements' })} className="min-h-11 w-full rounded border-2 border-teal-700 py-2 text-sm font-bold text-teal-800">🏆 実績と、いまの目標を見る</button>
       <button type="button" onClick={() => go({ name: 'transfer' })} className="min-h-11 w-full text-sm text-cyan-700 underline">セーブの引き継ぎ（ほかの端末へ）</button>
     </Screen>
   );
