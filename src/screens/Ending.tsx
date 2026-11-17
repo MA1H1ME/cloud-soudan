@@ -4,7 +4,7 @@ import { PrimaryButton, Screen, yen } from '../components/ui';
 import { SenpaiFace } from '../components/Senpai';
 import { go } from '../router';
 import { simFor, nameFor } from '../jobs';
-import { RANKS, customerSave, pastResults, rankOf, useSave } from '../store';
+import { RANKS, customerSave, pastResults, rankOf, tierOf, useSave } from '../store';
 import { GRADE_MARK } from '../components/ui';
 
 export function Ending() {
@@ -35,6 +35,7 @@ export function Ending() {
         <h2 className="mb-1 font-bold text-slate-900">{company.name}のあゆみ</h2>
         <dl className="space-y-0.5 tabular-nums">
           <div className="flex justify-between"><dt>営業日数</dt><dd>{state.clock}日</dd></div>
+          <div className="flex justify-between"><dt>評判</dt><dd>{state.reputation}（{tierOf(state.reputation).name}）</dd></div>
           <div className="flex justify-between"><dt>会社のランク</dt><dd>{RANKS[rankOf(state.revenue)]!.name}</dd></div>
           <div className="flex justify-between"><dt>受け取った契約料</dt><dd>{yen(state.revenue)}</dd></div>
           <div className="flex justify-between"><dt>手元の資金</dt><dd>{yen(company.cash)}</dd></div>

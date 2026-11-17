@@ -9,7 +9,7 @@ import { Term } from '../components/Term';
 import type { Blueprint, PartType } from '../sim/schema';
 import { ticketsFrom } from '../sim/tickets';
 import {
-  MAIL_STAGE, RANKS, STAFF, calendar, canOpsHandle, isBankrupt, nextPayday, payroll, salesFeeMult, rankOf, customerSave, dayOf, dueSpots, inbox, onRacks, pastResults, pendingRequests, planFor, runningResult, unlockStage, useSave,
+  MAIL_STAGE, RANKS, STAFF, calendar, canOpsHandle, isBankrupt, nextPayday, payroll, salesFeeMult, tierOf, rankOf, customerSave, dayOf, dueSpots, inbox, onRacks, pastResults, pendingRequests, planFor, runningResult, unlockStage, useSave,
   type CustomerSave,
 } from '../store';
 import { Desk, MONO, Person, PX, Tiles } from '../components/pixel';
@@ -282,7 +282,7 @@ export function Floor() {
         <span className="text-yellow-300" aria-label={`会社のランク ${RANKS[rank]!.name}`}>{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>
         <button type="button" onClick={() => { setSpeed(0); setMenu(true); }} aria-label="メニュー" className="-my-2 -mr-2 h-11 w-11 text-lg text-white">☰</button>
       </header>
-      <p className="truncate px-3 py-1 text-[11px] text-slate-300" style={{ background: '#1b2333' }}>{company.name}（{RANKS[rank]!.name}）　ラック {racks.length}／{state.racks}</p>
+      <p className="truncate px-3 py-1 text-[11px] text-slate-300" style={{ background: '#1b2333' }}>{company.name}（{RANKS[rank]!.name}）　ラック {racks.length}／{state.racks}　評判 {state.reputation}（{tierOf(state.reputation).name}）</p>
       {menuSheet}
       {company.cash < 0 && (
         <button type="button" onClick={() => { setSpeed(0); go({ name: 'company' }); }} className="block w-full border-y-2 border-red-700 bg-red-950 px-3 py-2 text-left text-xs text-red-100">

@@ -3,6 +3,7 @@
 import { content, customerById, simByCustomer } from './content';
 import { UNLOCK_MONTH } from './guide';
 import { generateJob, rng, type GeneratedJob } from './sim/generator';
+import { REFERRAL_CANDIDATES } from './reputation';
 import type { PartType, SimCustomer } from './sim/schema';
 
 const cache = new Map<string, GeneratedJob | null>();
@@ -52,7 +53,7 @@ export const isStory = (id: string) => simByCustomer.has(id);
  */
 export function mailsForDay(day: number, stage: number, extra = 0, early = false): string[] {
   const r = rng(day * 9973 + 17);
-  const n = early ? 1 : r.int(2, 3) + extra;
+  const n = early ? 1 : Math.max(1, r.int(2, 3) + extra);
   const out: string[] = [];
   const seen = new Set<string>();
   for (let i = 0; i < 10 && out.length < n; i++) {
@@ -69,3 +70,15 @@ export function mailsForDay(day: number, stage: number, extra = 0, early = false
 
 /** メールの期限（届いた日を含めて何日残るか） */
 export const MAIL_DAYS = 2;
+
+/** ◎のあとに届く紹介案件。何件か候補を作って、いちばん難しいものを選ぶ（同じ日・同じ段階なら、いつも同じもの） */
+export function referralId(clock: number, stage: number): string {
+  let best = jobId(500000 + clock * 10, stage);
+  let level = jobFor(best)?.level ?? 0;
+  for (let i = 1; i < REFERRAL_CANDIDATES; i++) {
+    const id = jobId(500000 + clock * 10 + i, stage);
+    const l = jobFor(id)?.level ?? 0;
+    if (l > level) { best = id; level = l; }
+  }
+  return best;
+}

@@ -2,7 +2,7 @@
 import { Screen, yen } from '../components/ui';
 import { go } from '../router';
 import {
-  BANKRUPT_LIMIT, GEAR, GEAR_IDS, INTEREST_RATE, MAX_RACKS, PAYDAY, RANKS, STAFF, onRacks, payroll, rackPrice, rankOf, useSave,
+  BANKRUPT_LIMIT, GEAR, GEAR_IDS, INTEREST_RATE, MAX_RACKS, PAYDAY, RANKS, STAFF, TIERS, onRacks, payroll, rackPrice, rankOf, tierIndex, useSave,
   type StaffKind,
 } from '../store';
 
@@ -28,6 +28,25 @@ export function CompanyScreen() {
             <p className="mt-1 text-xs text-slate-500">次の「{nextRank.name}」まで {yen(nextRank.min - state.revenue)}</p>
           </>
         )}
+      </section>
+
+      <section className="rounded-xl border border-slate-300 px-3 py-3 text-sm">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-bold text-slate-900">評判　{TIERS[tierIndex(state.reputation)]!.name}</h2>
+          <span className="tabular-nums text-slate-700">{state.reputation}／100</span>
+        </div>
+        <div className="relative mt-2 h-3 rounded bg-slate-200" role="img" aria-label={`評判 ${state.reputation}`}>
+          <div className="h-3 rounded bg-amber-500" style={{ width: `${state.reputation}%` }} />
+          {TIERS.slice(1).map((t) => <span key={t.min} className="absolute top-0 h-3 w-px bg-slate-500" style={{ left: `${t.min}%` }} />)}
+        </div>
+        <ul className="mt-2 space-y-0.5 text-xs text-slate-700">
+          {TIERS.map((t, i) => (
+            <li key={t.min} className={i === tierIndex(state.reputation) ? 'font-bold text-slate-900' : 'text-slate-500'}>
+              {i === tierIndex(state.reputation) ? '▶ ' : '　'}{t.min}〜　{t.name}：{t.note || '特になし'}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-1 text-[11px] text-slate-500">月次報告で ◎ +6、○ +3、△ −1、× −8。◎ のあとは、お客さんが案件を紹介してくれます。</p>
       </section>
 
       <section className={`rounded-xl border-2 px-3 py-2 text-sm ${owing ? 'border-red-500 bg-red-50' : 'border-slate-300'}`}>
