@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 
 export type Route =
-  | { name: 'title' | 'opening' | 'floor' | 'record' | 'glossary' | 'mail' | 'company' | 'ending' | 'transfer' }
+  | { name: 'title' | 'opening' | 'floor' | 'record' | 'glossary' | 'mail' | 'company' | 'ending' | 'transfer' | 'exam' }
   | { name: 'spot'; spotId: string; practice: boolean }
   | { name: 'hearing' | 'blueprint' | 'build' | 'verify' | 'report'; customerId: string };
 
@@ -10,7 +10,7 @@ export function parse(hash: string): Route {
   const [name, id] = hash.replace(/^#\/?/, '').split('/');
   if ((name === 'hearing' || name === 'blueprint' || name === 'build' || name === 'verify' || name === 'report') && id) return { name, customerId: id };
   if (name === 'spot' && id) return { name, spotId: id, practice: hash.endsWith('/practice') };
-  if (name === 'opening' || name === 'floor' || name === 'record' || name === 'glossary' || name === 'mail' || name === 'company' || name === 'ending' || name === 'transfer') return { name };
+  if (name === 'opening' || name === 'floor' || name === 'record' || name === 'glossary' || name === 'mail' || name === 'company' || name === 'ending' || name === 'transfer' || name === 'exam') return { name };
   return { name: 'title' };
 }
 

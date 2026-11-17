@@ -17,6 +17,7 @@ import { Mail } from './screens/Mail';
 import { CompanyScreen } from './screens/Company';
 import { Ending } from './screens/Ending';
 import { Transfer } from './screens/Transfer';
+import { Exam } from './screens/Exam';
 import { TermSheet } from './components/Term';
 
 export function App() {
@@ -74,6 +75,8 @@ function Routes() {
       return <Ending />;
     case 'transfer':
       return <Transfer />;
+    case 'exam':
+      return <Exam />;
     case 'hearing':
       return <Hearing customerId={route.customerId} />;
     case 'build':
