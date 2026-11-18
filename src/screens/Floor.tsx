@@ -265,7 +265,7 @@ export function Floor() {
         ].map((m) => (
           <button key={m.label} type="button" onClick={() => { setSpeed(0); m.on(); }} className="block w-full px-2 py-2 text-left active:bg-white/10">{m.label}</button>
         ))}
-        <p className="px-2 pt-1 text-[10px] text-slate-300">進み具合は自動で保存されます。</p>
+        <p className="px-2 pt-1 text-[10px] text-slate-300">進み具合は自動で保存されます。金額や処理能力はゲーム内の値です。</p>
       </nav>
     </div>
   );
@@ -308,28 +308,28 @@ export function Floor() {
   const gap = (W - rw * state.racks) / (state.racks + 1);
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-slate-900">
-      <header className="flex items-center justify-between px-3 py-2 text-sm text-white" style={{ background: '#1b2333', fontFamily: MONO }}>
+    <div className="mx-auto flex h-dvh max-w-md flex-col overflow-hidden bg-slate-900">
+      <header className="flex shrink-0 items-center justify-between px-3 py-1.5 text-sm text-white" style={{ background: '#1b2333', fontFamily: MONO }}>
         <span>{calendar(state.clock).label}</span>
         <span className="font-bold text-yellow-300">{yen(company.cash)}</span>
         <span className="text-yellow-300" aria-label={`会社のランク ${RANKS[rank]!.name}`}>{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>
         <button type="button" onClick={() => { setSpeed(0); setMenu(true); }} aria-label="メニュー" className="-my-2 -mr-2 h-11 w-11 text-lg text-white">☰</button>
       </header>
-      <p className="truncate px-3 py-1 text-[11px] text-slate-300" style={{ background: '#1b2333' }}>{company.name}（{RANKS[rank]!.name}）　ラック {racks.length}／{state.racks}　評判 {state.reputation}（{tierOf(state.reputation).name}）</p>
+      <p className="shrink-0 truncate px-3 pb-1 text-[11px] text-slate-300" style={{ background: '#1b2333' }}>{company.name}（{RANKS[rank]!.name}）　ラック {racks.length}／{state.racks}　評判 {state.reputation}（{tierOf(state.reputation).name}）</p>
       {menuSheet}
       {company.cash < 0 && (
-        <button type="button" onClick={() => { setSpeed(0); go({ name: 'company' }); }} className="block w-full border-y-2 border-red-700 bg-red-950 px-3 py-2 text-left text-xs text-red-100">
-          ⚠ 資金がマイナスです（{yen(company.cash)}）。給料日ごとに利息がかかります。契約料が入るまで、雇用や設備は買えません。
+        <button type="button" onClick={() => { setSpeed(0); go({ name: 'company' }); }} className="block w-full shrink-0 truncate border-y border-red-700 bg-red-950 px-3 py-1 text-left text-xs text-red-100">
+          ⚠ 資金がマイナス（{yen(company.cash)}）。給料日ごとに利息がかかります ▶
         </button>
       )}
       {company.cash >= 0 && payroll(state.staff) > 0 && company.cash < payroll(state.staff) && nextPayday(state.clock) - state.clock <= 7 && (
-        <button type="button" onClick={() => { setSpeed(0); go({ name: 'company' }); }} className="block w-full border-y-2 border-amber-600 bg-amber-950 px-3 py-2 text-left text-xs text-amber-100">
-          ⚠ 給料日まであと{nextPayday(state.clock) - state.clock}日。給料 {yen(payroll(state.staff))} に対して、手元の資金 {yen(company.cash)} では足りません。
+        <button type="button" onClick={() => { setSpeed(0); go({ name: 'company' }); }} className="block w-full shrink-0 truncate border-y border-amber-600 bg-amber-950 px-3 py-1 text-left text-xs text-amber-100">
+          ⚠ 給料日まであと{nextPayday(state.clock) - state.clock}日。給料 {yen(payroll(state.staff))} に資金が足りません ▶
         </button>
       )}
 
-      <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="pixel block w-full" role="img" aria-label="会社のフロア">
+      <div className="relative min-h-0 flex-1">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="pixel block h-full w-full" role="img" aria-label="会社のフロア">
           <Tiles x={0} y={0} cols={18} rows={7} a={PX.f1} b={PX.f2} />
           <Tiles x={0} y={120} cols={18} rows={12} a={PX.s1} b={PX.s2} />
           <rect x="0" y="112" width="128" height="8" fill={PX.wall} />
@@ -461,42 +461,43 @@ export function Floor() {
         </svg>
 
         {latest && <p className="sr-only" aria-live="polite">{name}さん {latest.day}日目：{latest.label}：{ruleById.get(latest.ruleId)?.headline}</p>}
+        {/* 先輩の案内は、絵の上に重ねて出す（画面の高さを増やさない） */}
+        <div className="pointer-events-none absolute inset-x-2 bottom-2 z-10 max-h-full space-y-2 overflow-y-auto [&>*]:pointer-events-auto">
+          {stage >= MAIL_STAGE && <Senpai tip="mail-start" />}
+          {!main && <Senpai tip="first-request" />}
+          {main && before && !inCase && stage >= 2 && <Senpai tip="unlock-2" />}
+          {main && before && !inCase && stage >= 3 && <Senpai tip="unlock-3" />}
+          {main && before && !inCase && plan && <Senpai tip="operate" />}
+        </div>
         {toast && <p className="absolute left-3 right-3 top-2 z-10 border-2 border-yellow-300 bg-slate-900 px-3 py-2 text-center text-sm text-white" role="status">{toast}</p>}
       </div>
 
-      {stage >= MAIL_STAGE && <div className="px-3 pt-2"><Senpai tip="mail-start" /></div>}
-      {!main && <div className="px-3 pt-2"><Senpai tip="first-request" /></div>}
-      {main && before && !inCase && stage >= 2 && <div className="px-3 pt-2"><Senpai tip="unlock-2" /></div>}
-      {main && before && !inCase && stage >= 3 && <div className="px-3 pt-2"><Senpai tip="unlock-3" /></div>}
-      {main && before && !inCase && plan && <div className="px-3 pt-2"><Senpai tip="operate" /></div>}
 
       {reportRack && (
-        <button type="button" onClick={() => go({ name: 'report', customerId: reportRack.id })} className="mx-3 mt-2 border-2 border-yellow-300 py-2 text-sm font-bold text-white" style={{ background: '#3b2f0b' }}>
+        <button type="button" onClick={() => go({ name: 'report', customerId: reportRack.id })} className="mx-3 my-1 shrink-0 border-2 border-yellow-300 py-1.5 text-sm font-bold text-white" style={{ background: '#3b2f0b' }}>
           📄 {nameFor(reportRack.id)}さんの月次レポートを読む
         </button>
       )}
 
       {main && plan && (
-        <section className="space-y-2 border-t-2 border-white px-3 py-3 text-white" style={{ background: PX.box }}>
-          <p className="text-xs font-bold text-yellow-300">☎ {name}さん（{jobFor(MAIN) ? `${jobFor(MAIN)!.business}・1か月契約` : `${main.save.month}か月目`}）</p>
-          {before && (
-            <details className="text-sm leading-relaxed">
-              <summary className="cursor-pointer text-[13px] text-slate-200">今月のお客さんの声を読む</summary>
-              <p className="mt-1">{plan.brief}</p>
+        <section className="max-h-[38dvh] shrink-0 space-y-1 overflow-y-auto border-t-2 border-white px-3 py-2 text-white" style={{ background: PX.box }}>
+          <p className="truncate text-xs font-bold text-yellow-300">☎ {name}さん（{jobFor(MAIN) ? `${jobFor(MAIN)!.business}・1か月契約` : `${main.save.month}か月目`}）</p>
+          <p className="truncate text-[11px] text-slate-300">
+            予算 {yen(plan.budget)}／稼働率 {(plan.uptimeTarget * 100).toFixed(1)}%以上／訪問 {plan.visitsPerDay.toLocaleString('ja-JP')}/日
+          </p>
+          {before && (plan.brief || tickets.length > 0) && (
+            <details className="text-xs leading-relaxed">
+              <summary className="cursor-pointer truncate text-slate-200">{tickets.length > 0 ? <span className="text-red-200">⚠ 先月の課題 {tickets.length}件・お客さんの声を読む</span> : 'お客さんの声を読む'}</summary>
+              <p className="mt-1 text-sm">{plan.brief}</p>
+              {tickets.map((t) => <p key={t.id} className="mt-1 border border-red-400 px-2 py-1 text-red-200">先月の課題：{t.voice}</p>)}
             </details>
           )}
-          {before && tickets.map((t) => <p key={t.id} className="border border-red-400 px-2 py-1 text-xs text-red-200">先月の課題：{t.voice}</p>)}
-          <p className="text-[11px] text-slate-300">
-            予算 {yen(plan.budget)}／稼働率 {(plan.uptimeTarget * 100).toFixed(1)}%以上／1日の訪問 {plan.visitsPerDay.toLocaleString('ja-JP')}
-          </p>
           {state.gear.includes('monitor') && main.save.running && forecast.length > 0 && (
-            <p className="border border-cyan-500 px-2 py-1 text-xs text-cyan-100">
-              📡 予報：{forecast.map((f) => `${f.day}日ごろ ${f.label}`).join('／')}
-            </p>
+            <p className="truncate text-xs text-cyan-100">📡 予報：{forecast.map((f) => `${f.day}日ごろ ${f.label}`).join('／')}</p>
           )}
           {result && (
-            <p className="text-xs text-slate-300" style={{ fontFamily: MONO }}>
-              {name}さん {day}/30日　お客さんの売上 <span className="font-bold text-yellow-300">{yen(result.earnedByDay.slice(0, day).reduce((a, b) => a + b, 0))}</span>　月額 {yen(result.fixedCost)}
+            <p className="truncate text-xs text-slate-300" style={{ fontFamily: MONO }}>
+              {day}/30日　売上 <span className="font-bold text-yellow-300">{yen(result.earnedByDay.slice(0, day).reduce((a, b) => a + b, 0))}</span>　月額 {yen(result.fixedCost)}
             </p>
           )}
           {inCase ? (
@@ -511,10 +512,10 @@ export function Floor() {
         </section>
       )}
 
-      <SenpaiLine dark>{nextStep}</SenpaiLine>
+      <SenpaiLine dark compact>{idleWithWork ? (racks.length ? `${nextStep}（月を始めると、時間を進められます）` : nextStep) : halted && !blockingRack ? '月末の報告を読むと、時間を進められます。' : nextStep}</SenpaiLine>
 
-      <div className="sticky bottom-0 z-20 mt-auto bg-slate-900/95 backdrop-blur">
-        <div className="flex items-center justify-center gap-2 px-3 py-2" style={{ fontFamily: MONO }}>
+      <div className="shrink-0 bg-slate-900">
+        <div className="flex items-center justify-center gap-2 px-3 pb-1" style={{ fontFamily: MONO }}>
           {([[0, '⏸ 停止'], [1, '▶ ×1'], [4, '▶▶ ×4']] as const).map(([s, label]) => (
             <button key={s} type="button" aria-pressed={speed === s} onClick={() => setSpeed(s)} disabled={s > 0 && (halted || idleWithWork)}
               className={`flex-1 py-2 text-sm disabled:opacity-40 ${speed === s ? 'bg-yellow-300 font-bold text-slate-900' : 'bg-slate-700 text-white'}`}>
@@ -522,9 +523,7 @@ export function Floor() {
             </button>
           ))}
         </div>
-        {idleWithWork && <p className="px-3 text-center text-[11px] text-yellow-200">{racks.length ? 'お客さんの月を始めると、時間を進められます。' : 'メールで依頼を受けると、時間を進められます。'}</p>}
-        {halted && !blockingRack && <p className="px-3 text-center text-[11px] text-yellow-200">月末の報告を読むと、時間を進められます。</p>}
-        <nav className="grid grid-cols-4 gap-1 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1">
+        <nav className="grid grid-cols-4 gap-1 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {[
             { label: '設計図', on: Boolean(main && before && !inCase), go: () => go({ name: 'blueprint', customerId: MAIN }), note: '月初だけ' },
             { label: '構築', on: Boolean(main && before && !inCase), go: () => go({ name: 'build', customerId: MAIN }), note: '月初だけ' },
@@ -538,7 +537,6 @@ export function Floor() {
             </button>
           ))}
         </nav>
-        <p className="px-3 pb-2 text-center text-[10px] text-slate-500">金額や処理能力はゲーム内の値です。</p>
       </div>
 
       {isBankrupt(company.cash) && (

@@ -18,11 +18,11 @@ export function SenpaiFace({ size = 40 }: { size?: number }) {
 }
 
 /** 一言だけの案内（閉じられない）。「次にやること」などに使う */
-export function SenpaiLine({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
+export function SenpaiLine({ children, dark = false, compact = false }: { children: React.ReactNode; dark?: boolean; compact?: boolean }) {
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 text-sm ${dark ? 'text-white' : 'text-slate-900'}`}>
-      <SenpaiFace size={28} />
-      <p className={`flex-1 rounded-lg px-2 py-1 ${dark ? 'bg-slate-700' : 'bg-emerald-50'}`}>{children}</p>
+    <div className={`flex shrink-0 items-center gap-2 px-3 ${compact ? 'py-1 text-xs' : 'py-2 text-sm'} ${dark ? 'text-white' : 'text-slate-900'}`}>
+      <SenpaiFace size={compact ? 22 : 28} />
+      <p className={`min-w-0 flex-1 rounded-lg px-2 py-1 ${compact ? 'line-clamp-2' : ''} ${dark ? 'bg-slate-700' : 'bg-emerald-50'}`}>{children}</p>
     </div>
   );
 }
