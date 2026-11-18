@@ -54,7 +54,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'exam-pass', title: '合格の目安', desc: '模擬試験で、合格の目安（72%）に届く', done: (f) => f.examBest >= 0.72, progress: (f) => ratio(f.examBest, 0.72) },
   { id: 'exam-full', title: '満点合格', desc: '模擬試験で、全問正解する', done: (f) => f.examBest >= 1 },
   { id: 'rules-half', title: '勉強熱心', desc: '起きた出来事の解説を、半分以上読む（出会う）', done: (f) => f.seenRules * 2 >= f.rulesTotal, progress: (f) => ratio(f.seenRules, Math.ceil(f.rulesTotal / 2)) },
-  { id: 'story', title: '一人前', desc: '本編の3人の契約をすべて終える', goal: true, done: (f) => f.ending },
+  { id: 'story', title: '一人前', desc: '本編のお客さん全員の契約を終える', goal: true, done: (f) => f.ending },
   { id: 'revenue-1m', title: '業界の注目株', desc: '契約料の合計を、¥1,000,000 にする', goal: true, done: (f) => f.revenue >= 1000000, progress: (f) => ratio(f.revenue, 1000000) },
   { id: 'rules-all', title: '全部知っている', desc: '起きた出来事の解説を、すべて読む（出会う）', goal: true, done: (f) => f.seenRules >= f.rulesTotal, progress: (f) => ratio(f.seenRules, f.rulesTotal) },
 ];

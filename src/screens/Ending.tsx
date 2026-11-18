@@ -1,4 +1,4 @@
-// 本編クリア：3人のお客さんの契約をすべて終えたときに一度だけ出る。そのあとも会社は続けられる。
+// 本編クリア：本編のお客さん全員の契約を終えたときに一度だけ出る。そのあとも会社は続けられる。
 import { content } from '../content';
 import { PrimaryButton, Screen, yen } from '../components/ui';
 import { SenpaiFace } from '../components/Senpai';
@@ -28,7 +28,7 @@ export function Ending() {
       <div className="flex items-start gap-2">
         <SenpaiFace size={48} />
         <p className="flex-1 rounded-2xl rounded-tl-sm bg-emerald-50 px-3 py-2 text-sm leading-relaxed text-slate-900">
-          柏木さん、氷室さん、水野さん。3人とも、きみに任せてよかったと言っていたぞ。予算、止まらないこと、安全、速さ。どれを一番にするかはお客さんごとに違う。それを聞き出して、根拠のある構成で応えられるようになった。もう一人前だ。
+          {story.map((id) => `${nameFor(id).split(' ')[0]}さん`).join('、')}。みんな、きみに任せてよかったと言っていたぞ。予算、止まらないこと、安全、速さ。どれを一番にするかはお客さんごとに違う。それを聞き出して、根拠のある構成で応えられるようになった。もう一人前だ。
         </p>
       </div>
       <section className="rounded-xl border border-slate-300 px-3 py-3 text-sm">

@@ -11,3 +11,7 @@
   name: 氷室 玲
   business: クリニック向け予約サービス（CTO）
   kind: main
+- id: kuga
+  name: 久我 透
+  business: オンライン英会話の予約サービス
+  kind: main
