@@ -9,6 +9,7 @@ const patchSchema = z.object({
   backup: z.boolean().optional(),
   autoScaling: z.boolean().optional(),
   encryptDb: z.boolean().optional(),
+  nat: z.boolean().optional(),
   dbPublic: z.boolean().optional(),
   dbSgOpen: z.boolean().optional(),
   s3Public: z.boolean().optional(),

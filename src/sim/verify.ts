@@ -57,6 +57,10 @@ function judge(check: CheckType, bp: Blueprint, plan: MonthPlan, profitPerVisit:
       return bp.slots['data-c'] === 'rds-replica'
         ? { ok: true, detail: 'リードレプリカが読み取りを受けるので、集計で本体が重くなりません' }
         : { ok: false, detail: bp.slots['data-c'] === 'rds-standby' ? 'スタンバイは読み取りに使えません。集計の読み込みは本体にかかります' : '読み取りを受ける複製がなく、集計の読み込みは本体にかかります' };
+    case 'outbound':
+      return bp.nat
+        ? { ok: true, detail: 'NAT ゲートウェイがあり、サーバーから更新を取りに行けます' }
+        : { ok: false, detail: 'NAT ゲートウェイがなく、プライベートサブネットのサーバーは外へ更新を取りに行けません' };
     case 'encryption':
       return bp.encryptDb
         ? { ok: true, detail: 'データベースの保管時の暗号化が有効です' }

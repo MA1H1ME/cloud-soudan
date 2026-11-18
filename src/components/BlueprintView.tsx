@@ -93,6 +93,7 @@ export function BlueprintView({ blueprint, selected, onSelect }: { blueprint: Bl
       {s['data-c'] && (
         <text x="164" y="318" textAnchor="middle" fontSize="9" fill={M} fontFamily={MONO}>{s['data-c'] === 'rds-standby' ? '同期' : '非同期'}</text>
       )}
+      {blueprint.nat && <text x="276" y="117" textAnchor="end" fontSize="9" fill={C} fontFamily={MONO}>NAT</text>}
       {blueprint.autoScaling && s.public && <text x="164" y="170" textAnchor="middle" fontSize="9.5" fill={C} fontFamily={MONO}>Auto Scaling 有効</text>}
     </svg>
   );

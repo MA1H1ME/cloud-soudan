@@ -29,6 +29,7 @@ export const SLOT_LABELS: Record<Slot, string> = {
 export const LOCKED_SLOTS: Slot[] = ['data-a'];
 
 export const BACKUP_COST = 500;
+export const NAT_COST = 4500; // NAT ゲートウェイ（ゲーム内の値）
 export const EC2_CAPACITY = 1500; // 1台が1日にさばける訪問数
 export const ASG_MAX_EXTRA = 2; // Auto Scaling が一時的に足せる台数
 export const ASG_COST_PER_DAY = 400; // 足した1台・1日あたり

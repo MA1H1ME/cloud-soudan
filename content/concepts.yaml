@@ -29,3 +29,6 @@
 - id: rds-encryption
   title: RDS の保存データを暗号化する
   domain: secure
+- id: private-subnet-outbound
+  title: プライベートサブネットから外へ出る（NAT ゲートウェイ）
+  domain: secure

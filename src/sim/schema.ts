@@ -15,6 +15,7 @@ export const blueprintSchema = z.object({
   backup: z.boolean(),
   autoScaling: z.boolean(),
   encryptDb: z.boolean().default(false), // データベースの保管時の暗号化
+  nat: z.boolean().default(false), // NAT ゲートウェイ（プライベートサブネットのサーバーが外へ出る出口）
   dbPublic: z.boolean().default(false), // データベースのパブリックアクセス
   dbSgOpen: z.boolean().default(false), // セキュリティグループがどこからでも接続を許可している
   s3Public: z.boolean().default(false), // ファイル用バケットを公開している
@@ -25,7 +26,7 @@ export const blueprintSchema = z.object({
 });
 export type Blueprint = z.infer<typeof blueprintSchema>;
 
-export const eventTypeSchema = z.enum(['spike', 'db-failure', 'az-outage', 'probe', 'bucket-probe', 'audit', 'https-check', 'storage-review', 'invoice', 'read-surge', 'encryption-audit']);
+export const eventTypeSchema = z.enum(['spike', 'db-failure', 'az-outage', 'probe', 'bucket-probe', 'audit', 'https-check', 'storage-review', 'invoice', 'read-surge', 'encryption-audit', 'patch-day']);
 export type EventType = z.infer<typeof eventTypeSchema>;
 
 export const monthPlanSchema = z.object({
@@ -46,7 +47,7 @@ export const monthPlanSchema = z.object({
 });
 export type MonthPlan = z.infer<typeof monthPlanSchema>;
 
-export const checkTypeSchema = z.enum(['budget', 'data', 'downtime', 'peak', 'secure-db', 's3-private', 'no-keys', 'least-privilege', 'https', 'storage', 'reads', 'encryption']);
+export const checkTypeSchema = z.enum(['budget', 'data', 'downtime', 'peak', 'secure-db', 's3-private', 'no-keys', 'least-privilege', 'https', 'storage', 'reads', 'encryption', 'outbound']);
 export type CheckType = z.infer<typeof checkTypeSchema>;
 
 // ヒアリング：用意した質問から選んで聞き、要件メモを埋める。会話は事前に作成したものだけ。

@@ -17,7 +17,7 @@ const SITES = [
 ] as const;
 import { go } from '../router';
 import { baseCapacity, fixedCost, scalingActive } from '../sim/engine';
-import { ASG_COST_PER_DAY, ASG_MAX_EXTRA, EC2_CAPACITY, LOCKED_SLOTS, PARTS, SLOT_LABELS, SLOT_OPTIONS } from '../sim/parts';
+import { ASG_COST_PER_DAY, ASG_MAX_EXTRA, EC2_CAPACITY, NAT_COST, LOCKED_SLOTS, PARTS, SLOT_LABELS, SLOT_OPTIONS } from '../sim/parts';
 import type { Slot } from '../sim/schema';
 import { ticketsFrom } from '../sim/tickets';
 import { customerSave, partUnlocked, pastResults, planFor, unlockStage, useSave } from '../store';
@@ -128,6 +128,13 @@ export function BlueprintScreen({ customerId }: { customerId: string }) {
             </span>
           </span>
           <input type="checkbox" className="h-5 w-5" disabled={!bp.slots.public} checked={bp.autoScaling} onChange={(e) => state.setSetting(customerId, 'autoScaling', e.target.checked)} />
+        </label>
+        <label className="flex items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <span>
+            <b><Term id="nat-gateway">NAT ゲートウェイ</Term></b>
+            <span className="block text-xs text-slate-600">プライベートサブネットのサーバーが、外へ更新などを取りに行く出口（{yen(NAT_COST)}／月）</span>
+          </span>
+          <input type="checkbox" className="h-5 w-5" checked={bp.nat} onChange={(e) => state.setSetting(customerId, 'nat', e.target.checked)} />
         </label>
       </section>
 
