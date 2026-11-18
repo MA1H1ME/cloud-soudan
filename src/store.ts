@@ -47,6 +47,14 @@ export type Phase = 'hearing' | 'design' | 'build' | 'verify' | 'operate';
 
 export interface Company { name: string; cash: number }
 
+export interface Visit { name: string; text: string; mood: 'happy' | 'normal' | 'sad'; key: number }
+const VISIT_LINES: Record<Grade, { text: string; mood: Visit['mood'] }> = {
+  best: { text: 'ありがとう！ 本当に助かりました', mood: 'happy' },
+  good: { text: 'おおむね満足です。またお願いします', mood: 'normal' },
+  fair: { text: '次は、もう少し頼みますよ…', mood: 'sad' },
+  fail: { text: 'これでは困ります…', mood: 'sad' },
+};
+
 export interface LedgerEntry { day: number; amount: number; label: string }
 const LEDGER_MAX = 300;
 const appendLedger = (ledger: LedgerEntry[] | undefined, ...entries: LedgerEntry[]) => [...(ledger ?? []), ...entries.filter((e) => e.amount !== 0)].slice(-LEDGER_MAX);
@@ -111,6 +119,9 @@ interface SaveState {
   /** フロアに戻ったときに出す入金の知らせ（一度出したら消す） */
   income: string | null;
   notifyIncome: (text: string | null) => void;
+  /** 来社しているお客さん（フロアで歩いてきて、ひとこと言って帰る） */
+  visit: Visit | null;
+  clearVisit: () => void;
   /** お金の出入り（会社の暦の日・金額・内容）。決算の画面で使う */
   ledger: LedgerEntry[];
   /** まだ見ていない決算（給料日に、それまでの30日分をまとめる） */
@@ -229,7 +240,7 @@ export const useSave = create<SaveState>()(
         acceptMail: (id) => {
           const st = get();
           if (onRacks(st).length >= st.racks || !simFor(id)) return false;
-          set({ accepted: [...new Set([...st.accepted, id])], active: id, mailStatus: { ...st.mailStatus, [id]: 'accepted' } });
+          set({ accepted: [...new Set([...st.accepted, id])], active: id, mailStatus: { ...st.mailStatus, [id]: 'accepted' }, visit: { name: nameFor(id), text: 'よろしくお願いします！', mood: 'normal', key: Date.now() } });
           return true;
         },
         declineMail: (id) => set({ mailStatus: { ...get().mailStatus, [id]: 'declined' } }),
@@ -244,7 +255,7 @@ export const useSave = create<SaveState>()(
         accepted: [],
         active: null,
         accept: (customerId) => {
-          if (onRacks(get()).length < get().racks) set({ accepted: [...new Set([...get().accepted, customerId])], active: customerId });
+          if (onRacks(get()).length < get().racks) set({ accepted: [...new Set([...get().accepted, customerId])], active: customerId, visit: { name: nameFor(customerId), text: 'よろしくお願いします！', mood: 'normal', key: Date.now() } });
         },
         setActive: (customerId) => get().accepted.includes(customerId) && set({ active: customerId }),
         setSite: (customerId, value) => update(customerId, (c) => (c.running ? c : { ...c, blueprint: { ...c.blueprint, site: value } })),
@@ -266,6 +277,8 @@ export const useSave = create<SaveState>()(
         income: null,
         notifyIncome: (text) => set({ income: text }),
         setAchieved: (ids) => set({ achieved: ids }),
+        visit: null,
+        clearVisit: () => set({ visit: null }),
         ledger: [],
         pendingSettlement: null,
         closeSettlement: () => set({ pendingSettlement: null }),
@@ -369,7 +382,7 @@ export const useSave = create<SaveState>()(
               notes.push('🤝 お客さんが案件を紹介してくれました（メールを確認）');
             }
           }
-          set({ reputation: after, mailLog, income: [get().income, ...notes].filter(Boolean).join('　') || null });
+          set({ visit: { name: nameFor(customerId), ...VISIT_LINES[grade], key: Date.now() }, reputation: after, mailLog, income: [get().income, ...notes].filter(Boolean).join('　') || null });
           if (company && fee > 0) sfx.coin();
           if (company && fee > 0) {
             set({

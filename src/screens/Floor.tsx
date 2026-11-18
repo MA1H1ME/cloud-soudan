@@ -195,6 +195,14 @@ export function Floor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.income]);
 
+  // 来社したお客さんは、ひとこと言って帰る（演出が終わったら消す）
+  useEffect(() => {
+    if (!state.visit) return;
+    const t = setTimeout(() => state.clearVisit(), 5000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.visit?.key]);
+
   // 決算が出たら、時間を止める
   useEffect(() => {
     if (state.pendingSettlement) { setSpeed(0); sfx.coin(); }
@@ -336,7 +344,28 @@ export function Floor() {
 
       <div className="relative min-h-0 flex-1">
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="pixel block h-full w-full" role="img" aria-label="会社のフロア">
-          <Tiles x={0} y={0} cols={18} rows={7} a={PX.f1} b={PX.f2} />
+          {/* オフィスの床は、ランクが上がると明るい色に張り替わる */}
+          <Tiles x={0} y={0} cols={18} rows={7} a={rank >= 2 ? '#f0e2c8' : PX.f1} b={rank >= 2 ? '#e8d3ae' : PX.f2} />
+          {/* ランクで増える内装：窓（2つ目〜）、本棚（3つ目〜）、コーヒー（4つ目〜）、トロフィー（5つ目） */}
+          {rank >= 1 && (
+            <g aria-hidden="true">
+              {[176, 206, 236].map((x) => <g key={x}><rect x={x} y="2" width="24" height="14" fill="#9fd8ff" stroke={PX.wall} strokeWidth="2" /><rect x={x + 11} y="2" width="2" height="14" fill={PX.wall} /></g>)}
+            </g>
+          )}
+          {rank >= 2 && (
+            <g aria-hidden="true">
+              <rect x="262" y="80" width="22" height="28" fill={PX.deskD} />
+              {[84, 93, 102].map((y, i) => <g key={y}><rect x="264" y={y} width="18" height="1.5" fill="#5a3d24" /><rect x={265 + i} y={y - 6} width="4" height="6" fill={['#d84f7a', '#4f7fd8', '#2f7d5b'][i]} /><rect x={271 + i} y={y - 5} width="3" height="5" fill="#e8a33d" /></g>)}
+              {rank >= 4 && <><rect x="276" y="73" width="6" height="6" fill="#ffd84d" /><rect x="278" y="79" width="2" height="2" fill="#ffd84d" /></>}
+            </g>
+          )}
+          {rank >= 3 && (
+            <g aria-hidden="true">
+              <rect x="4" y="88" width="14" height="20" fill="#3a4256" />
+              <rect x="7" y="92" width="8" height="5" fill="#7fd3ff" />
+              <rect x="8" y="100" width="6" height="6" fill="#f5f5f5" />
+            </g>
+          )}
           <Tiles x={0} y={120} cols={18} rows={12} a={PX.s1} b={PX.s2} />
           <rect x="0" y="112" width="128" height="8" fill={PX.wall} />
           <rect x="160" y="112" width="128" height="8" fill={PX.wall} />
@@ -385,6 +414,17 @@ export function Floor() {
             )}
           </g>
           <rect x="270" y="66" width="10" height="10" fill={PX.pot} /><rect x="267" y="54" width="16" height="12" fill={PX.plant} />
+          {state.visit && (
+            <g key={state.visit.key} className="visitor" aria-hidden="true">
+              <Person x={30} y={40} shirt={['#c2410c', '#0f766e', '#7c3aed', '#b45309', '#be185d'][state.visit.name.length % 5]!} />
+              <g className="visitor-say">
+                <rect x="-8" y="14" width="96" height="20" fill={PX.w} stroke={state.visit.mood === 'sad' ? PX.r : state.visit.mood === 'happy' ? '#1f9d55' : PX.ink} strokeWidth="1.2" />
+                <foreignObject x="-6" y="15" width="92" height="18">
+                  <p style={{ fontSize: 6.5, lineHeight: 1.2, color: PX.ink, margin: 0 }}>{state.visit.name}さん：{state.visit.text}</p>
+                </foreignObject>
+              </g>
+            </g>
+          )}
           {talk && (() => {
             const o = OFFICE.find((x) => x.id === talk.who)!;
             const bx = Math.min(W - 150, Math.max(4, o.x - 40));

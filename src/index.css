@@ -63,3 +63,18 @@ body {
 
 /* タップしたときの枠は出さず、キーボード操作のときだけ出す */
 svg [role='button']:focus:not(:focus-visible) { outline: none; }
+
+/* 来社したお客さん：入口から歩いてきて、ひとこと言って帰る */
+@keyframes visit-walk {
+  0% { transform: translate(115px, 50px); opacity: 0; }
+  8% { opacity: 1; }
+  30%, 75% { transform: translate(40px, 22px); opacity: 1; }
+  100% { transform: translate(115px, 50px); opacity: 0; }
+}
+@keyframes visit-say { 0%, 28% { opacity: 0; } 32%, 74% { opacity: 1; } 78%, 100% { opacity: 0; } }
+.visitor { animation: visit-walk 5s steps(20) forwards; }
+.visitor-say { animation: visit-say 5s linear forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .visitor { animation: none; transform: translate(40px, 22px); }
+  .visitor-say { animation: none; }
+}
