@@ -65,6 +65,8 @@ function incidentForRaw(ev: Ev, index: number, plan: MonthPlan, bp: Blueprint, b
       options: [
         { id: 'wait', label: 'マルチAZと同じように、自動で切り替わるのを待つ', good: false, effect: { down: 1 },
           result: 'リードレプリカは自動では切り替わりません。本体が戻るまで、丸1日止まりました。' },
+        { id: 'restore', label: 'バックアップから時点を指定して復元し、接続先を切り替える', good: false, effect: { down: 0.6 },
+          result: '復元では新しいDBインスタンスを作るので、待つ時間が長くなりました。動いているレプリカを昇格させるほうが早く戻せました。' },
         { id: 'promote', label: 'リードレプリカを昇格させ、アプリの接続先を切り替える', good: true, effect: { down: 0.25 },
           result: '昇格と接続先の切り替えで、数時間で再開できました。手作業が要るのが、マルチAZとの違いです。' },
       ],
@@ -76,6 +78,8 @@ function incidentForRaw(ev: Ev, index: number, plan: MonthPlan, bp: Blueprint, b
       alert: `${ev.label}：データベースが壊れました。自動バックアップはあります。`,
       question: 'どう対応する？',
       options: [
+        { id: 'reboot', label: 'データベースを再起動して、様子を見る', good: false, effect: { down: 1 },
+          result: '壊れたデータは再起動では戻りません。結局、時点を指定した復元が必要になり、丸1日止まりました。' },
         { id: 'restore', label: 'ある時点への復元で新しいDBインスタンスを作り、アプリの接続先を切り替える', good: true, effect: { down: 0.5 },
           result: '新しいDBインスタンスを作って接続先を切り替え、半日で再開できました。復元を待つ間は止まります。' },
         { id: 'overwrite', label: '今のDBインスタンスに、バックアップが上書きで戻るのを待つ', good: false, effect: { down: 1 },
@@ -91,6 +95,8 @@ function incidentForRaw(ev: Ev, index: number, plan: MonthPlan, bp: Blueprint, b
         alert: `${ev.label}：アクセスが急に増えて、ページが重くなり始めました。`,
         question: 'どう対応する？',
         options: [
+          { id: 'notice', label: 'お客さんのサイトに「ただいま混雑中」の案内を出してもらう', good: false, effect: {},
+            result: '案内を出しても、さばける量は増えません。混雑の間、買えないお客さんが出ました。' },
           { id: 'add', label: 'EC2 を1台手で起動し、ALB の振り分け先に登録する', good: true, effect: { capBoost: EC2_CAPACITY, extraCost: ASG_COST_PER_DAY * days },
             result: 'ALB が新しい1台にも振り分け、重さが和らぎました。毎回手でやるなら、Auto Scaling に任せる手もあります。' },
           { id: 'wait', label: '混雑が過ぎるのを待つ', good: false, effect: {},
@@ -107,6 +113,8 @@ function incidentForRaw(ev: Ev, index: number, plan: MonthPlan, bp: Blueprint, b
           result: '振り分ける ALB がないので、2台目にはアクセスが届きません。料金だけかかりました。' },
         { id: 'wait', label: '混雑が過ぎるのを待ち、振り分け（ALB）を入れる構成をお客さんに提案する', good: true, effect: {},
           result: '今の構成では打つ手がありません。振り分ける仕組みを設計に入れるのが根本の対策です。' },
+        { id: 'notice', label: 'サーバー1台のまま、「ただいま混雑中」の案内を出して終わりにする', good: false, effect: {},
+          result: '案内だけでは、次の混雑でも同じことが起きます。振り分ける仕組みを設計に入れる提案が要りました。' },
       ],
     };
   }
@@ -118,6 +126,8 @@ function incidentForRaw(ev: Ev, index: number, plan: MonthPlan, bp: Blueprint, b
       options: [
         { id: 'sg', label: 'セキュリティグループの接続元を、Webサーバーのセキュリティグループだけに絞る', good: true, effect: { penaltyDays: 1 },
           result: '外からの通信はすぐ届かなくなりました。ただ、それまでの間に一部が見られた可能性があり、お客さんへの報告が必要です。' },
+        { id: 'recreate', label: 'データベースのインスタンスを作り直す（設定はそのまま）', good: false, effect: { penaltyDays: 6 },
+          result: '同じ設定で作り直しても、外から届くのは同じでした。作り直している間の手間と損も増えました。' },
         { id: 'password', label: 'データベースのパスワードを変えて、様子を見る', good: false, effect: { penaltyDays: 5 },
           result: '通信の入り口は開いたままでした。接続の試みは続き、住所と電話番号が漏れました。' },
       ],
@@ -129,6 +139,8 @@ function incidentForRaw(ev: Ev, index: number, plan: MonthPlan, bp: Blueprint, b
       alert: `${ev.label}：本人にだけ渡すはずのファイルのURLが、知らない人に共有されています。`,
       question: 'まず何をする？',
       options: [
+        { id: 'delete', label: 'バケットの中のファイルを、いったんすべて消す', good: false, effect: { penaltyDays: 4 },
+          result: 'バケットは公開されたままで、新しく置いたファイルも同じように開けてしまいます。本人にも渡せなくなりました。' },
         { id: 'rename', label: 'ファイル名を推測されにくい名前に変える', good: false, effect: { penaltyDays: 5 },
           result: 'バケットは公開されたままでした。URLを知る人は、ほかのファイルも開けました。' },
         { id: 'bpa', label: 'ブロックパブリックアクセスを有効にし、署名付きURLで渡す方式に切り替える', good: true, effect: { penaltyDays: 1 },
@@ -144,6 +156,8 @@ function incidentForRaw(ev: Ev, index: number, plan: MonthPlan, bp: Blueprint, b
       options: [
         { id: 'role', label: 'キーを無効にし、必要な権限だけの IAM ロールに切り替える', good: true, effect: { penaltyDays: 1 },
           result: 'その場で直せたので、再審査で通りました。最初からロールにしていれば、この手間はありませんでした。' },
+        { id: 'rotate', label: 'アクセスキーを新しいものに入れ替えた、と報告する', good: false, effect: { penaltyDays: 3 },
+          result: '新しいキーでも、長期の認証情報をサーバーに置いていることは変わりません。指摘は解消されず、導入が延期になりました。' },
         { id: 'hide', label: 'キーを読み取りにくい別のファイルに移した、と報告する', good: false, effect: { penaltyDays: 3 },
           result: '長期の認証情報が残ったままなので、指摘は解消されず、導入が延期になりました。' },
       ],
