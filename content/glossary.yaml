@@ -143,3 +143,11 @@
   sources:
     - { title: 'Encrypting Amazon RDS resources', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Overview.Encryption.html', checkedAt: '2026-11-17' }
   review: { status: verified, verifiedAt: '2026-11-17' }
+- id: nat-gateway
+  term: NAT ゲートウェイ
+  short: プライベートサブネットのサーバーが、外へ出るための出口
+  body: NAT ゲートウェイを使うと、プライベートサブネットのインスタンスは VPC の外のサービスに接続できますが、外のサービスからそのインスタンスへ接続を始めることはできません。パブリック NAT ゲートウェイはパブリックサブネットに作り、作成時に Elastic IP アドレスを関連付けます。
+  play: 設計図の画面で置けます。サーバーが OS の更新を取りに行くときに要ります。
+  sources:
+    - { title: 'NAT gateways', url: 'https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html', checkedAt: '2026-11-18' }
+  review: { status: verified, verifiedAt: '2026-11-18' }

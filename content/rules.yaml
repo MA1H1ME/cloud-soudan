@@ -305,3 +305,23 @@
   sources:
     - { title: 'Encrypting Amazon RDS resources', url: 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Overview.Encryption.html', checkedAt: '2026-11-17' }
   review: { status: verified, verifiedAt: '2026-11-17' }
+- id: nat-outbound
+  conceptId: private-subnet-outbound
+  tone: good
+  headline: NAT ゲートウェイを通って更新を取りに行け、外からは入られなかった
+  explanation: NAT ゲートウェイを使うと、プライベートサブネットのインスタンスは VPC の外のサービスに接続できますが、外のサービスからそのインスタンスへ接続を始めることはできません。パブリック NAT ゲートウェイはパブリックサブネットに作り、作成時に Elastic IP アドレスを関連付けます。
+  examPoint: 「プライベートサブネットの EC2 から、パッチや外部 API に出たい（外からは入らせない）」は NAT ゲートウェイ。置き場所はパブリックサブネット。
+  sources:
+    - { title: 'NAT gateways', url: 'https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html', checkedAt: '2026-11-18' }
+  review: { status: verified, verifiedAt: '2026-11-18' }
+- id: no-outbound
+  conceptId: private-subnet-outbound
+  tone: bad
+  headline: サーバーが外へ出られず、セキュリティ更新を当てられなかった
+  explanation: プライベートサブネットには、インターネットゲートウェイへの直接の経路がありません。プライベートサブネットのリソースがインターネットにつながるには、NAT デバイスが必要です。NAT ゲートウェイを置けば、インスタンスは外のサービスに接続でき、外から接続を始められることはありません。
+  examPoint: サーバーをパブリックサブネットに移すのは誤答になりやすい。プライベートのまま NAT ゲートウェイ経由で外へ出すのが基本。
+  ticket: { kind: security, voice: '更新が当たっていないサーバーがあると、点検で指摘されました' }
+  sources:
+    - { title: 'Subnets for your VPC', url: 'https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html', checkedAt: '2026-11-18' }
+    - { title: 'NAT gateways', url: 'https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html', checkedAt: '2026-11-18' }
+  review: { status: verified, verifiedAt: '2026-11-18' }

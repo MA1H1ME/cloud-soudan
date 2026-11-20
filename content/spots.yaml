@@ -276,3 +276,29 @@
     - { id: enc, label: 暗号化を有効にする（バックアップも暗号化される）, patch: { encryptDb: true } }
     - { id: sg, label: セキュリティグループを絞るだけにする, patch: {} }
     - { id: standby, label: マルチ AZ にして、別のAZにも置く, patch: { slots: { data-c: rds-standby } } }
+- id: spot-dental-patch
+  conceptId: private-subnet-outbound
+  guest: 坂口さん
+  business: 歯科医院の予約サイト
+  voice: 業者さんに「サーバーのOSの更新が当たっていない」と言われました。サーバーはインターネットから見えない場所に置いてある、と聞いています。
+  goal: 毎月のセキュリティ更新を当て、サーバーは外から入られないままにする
+  plan: { visitsPerDay: 300, budget: 30000, uptimeTarget: 0.98, events: [{ day: 12, type: patch-day, label: OSのセキュリティ更新の配信 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false, nat: false }
+  avoid: [no-outbound]
+  options:
+    - { id: nat, label: パブリックサブネットに NAT ゲートウェイを置き、そこを通って外へ出す, patch: { nat: true } }
+    - { id: sg, label: セキュリティグループの送信（アウトバウンド）ルールをすべて許可する, patch: {} }
+    - { id: backup, label: 自動バックアップの保持期間を延ばしておく, patch: {} }
+- id: spot-library
+  conceptId: private-subnet-outbound
+  guest: 遠藤さん
+  business: 市立図書館の蔵書検索
+  voice: 予算は月2万円です。サーバーは外から入られない場所のままにしたいけれど、セキュリティ更新は毎月当てたいんです。
+  goal: 予算 ¥20,000 以内で、セキュリティ更新を当てる
+  plan: { visitsPerDay: 200, budget: 20000, uptimeTarget: 0.98, events: [{ day: 15, type: patch-day, label: OSのセキュリティ更新の配信 }] }
+  start: { slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }, backup: true, autoScaling: false, nat: false }
+  avoid: [no-outbound]
+  options:
+    - { id: standby, label: 念のためマルチ AZ にしておく, patch: { slots: { data-c: rds-standby } } }
+    - { id: nat, label: NAT ゲートウェイを置いて、更新を取りに行けるようにする, patch: { nat: true } }
+    - { id: none, label: 外から入られないなら安全なので、このままにする, patch: {} }

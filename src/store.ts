@@ -163,7 +163,7 @@ interface SaveState {
   answerSpot: (spotId: string, passed: boolean, firedRuleIds: string[], practice: boolean) => void;
   newGame: (name: string) => void;
   setSlot: (customerId: string, slot: Slot, part: PartType | null) => void;
-  setSetting: (customerId: string, key: 'backup' | 'encryptDb' | 'autoScaling' | 'dbPublic' | 'dbSgOpen' | 's3Public' | 'lifecycle', value: boolean) => void;
+  setSetting: (customerId: string, key: 'backup' | 'encryptDb' | 'nat' | 'autoScaling' | 'dbPublic' | 'dbSgOpen' | 's3Public' | 'lifecycle', value: boolean) => void;
   ask: (customerId: string, questionId: string) => void;
   setPhase: (customerId: string, phase: Phase) => void;
   startMonth: (customerId: string) => void;

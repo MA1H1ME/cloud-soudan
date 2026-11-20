@@ -249,3 +249,19 @@ describe('久我さん（速さ最優先）', () => {
     for (const m of kuga.months) expect(runMonth(kuga.profitPerVisit, m, kuga.start).grade).not.toBe('best');
   });
 });
+
+describe('NAT ゲートウェイ（セキュリティ更新の配信）', () => {
+  const plan = { ...month(1), events: [{ day: 12, type: 'patch-day' as const, label: '更新' }] };
+  it('NAT ゲートウェイがあれば、更新を当てられる', () => {
+    const r = runMonth(k.profitPerVisit, plan, bp({}, { nat: true }));
+    expect(ids(r)).toContain('nat-outbound');
+    expect(r.kpi.security).toBe(true);
+  });
+  it('なければ更新を取りに行けず、セキュリティの目標を落とす。費用は NAT の分だけ安い', () => {
+    const on = runMonth(k.profitPerVisit, plan, bp({}, { nat: true }));
+    const off = runMonth(k.profitPerVisit, plan, bp({}, { nat: false }));
+    expect(ids(off)).toContain('no-outbound');
+    expect(off.kpi.security).toBe(false);
+    expect(on.cost).toBeGreaterThan(off.cost);
+  });
+});

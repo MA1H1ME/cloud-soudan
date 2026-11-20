@@ -3,7 +3,7 @@
 import type { Blueprint, MonthPlan } from './schema';
 import { chosen, incidentFor, type Incident, type IncidentOption, type Responses } from './incidents';
 import {
-  ASG_COST_PER_DAY, ASG_MAX_EXTRA, BACKUP_COST, EC2_CAPACITY, PARTS, SLOW_DAYS_ALLOWED, SLOW_RATIO,
+  ASG_COST_PER_DAY, ASG_MAX_EXTRA, BACKUP_COST, EC2_CAPACITY, NAT_COST, PARTS, SLOW_DAYS_ALLOWED, SLOW_RATIO,
 } from './parts';
 
 export const DAYS = 30;
@@ -17,7 +17,7 @@ export const RULE_IDS = [
   'db-exposed', 'db-private',
   's3-public-leak', 's3-presigned-private', 'cred-access-key', 'cred-role-broad', 'cred-role-scoped',
   's3-website-no-https', 'cf-https-oac', 'cf-edge-cache', 'static-ec2-overload', 'static-on-ec2', 's3-lifecycle', 's3-no-lifecycle',
-  'db-replica-read', 'db-read-bottleneck', 'db-encrypted', 'db-unencrypted',
+  'db-replica-read', 'db-read-bottleneck', 'db-encrypted', 'db-unencrypted', 'nat-outbound', 'no-outbound',
 ] as const;
 export type RuleId = (typeof RULE_IDS)[number];
 
@@ -66,7 +66,7 @@ export function staticCost(bp: Blueprint, month: number): number {
 export function fixedCost(bp: Blueprint, month = 1): number {
   if (bp.site !== 'none') return staticCost(bp, month);
   const parts = Object.values(bp.slots).reduce((sum, p) => sum + (p ? PARTS[p].cost : 0), 0);
-  return parts + (bp.backup ? BACKUP_COST : 0);
+  return parts + (bp.backup ? BACKUP_COST : 0) + (bp.nat ? NAT_COST : 0);
 }
 
 /** データベースにインターネットから届く状態か（パブリックアクセスあり、かつ接続元を絞っていない） */
@@ -180,6 +180,16 @@ export function runMonth(profitPerVisit: number, plan: MonthPlan, bp: Blueprint,
       else {
         fire('db-read-bottleneck', ev.day, ev.label);
         for (let i = ev.day - 1; i < Math.min(DAYS, ev.day - 1 + (ev.days ?? 3)); i++) dbSlow[i] = true;
+      }
+      continue;
+    }
+    if (ev.type === 'patch-day') {
+      // OS のセキュリティ更新。プライベートサブネットのサーバーは、NAT ゲートウェイがないと外へ取りに行けない
+      if (bp.nat) fire('nat-outbound', ev.day, ev.label);
+      else {
+        breached = true;
+        fire('no-outbound', ev.day, ev.label);
+        penalty += 2 * profitPerVisit * plan.visitsPerDay;
       }
       continue;
     }
