@@ -238,3 +238,14 @@ describe('保管時の暗号化の審査', () => {
     expect(off.net).toBeLessThan(on.net);
   });
 });
+
+describe('久我さん（速さ最優先）', () => {
+  const kuga = simCustomerSchema.parse(parse(readFileSync(join(dir, 'sim/kuga.yaml'), 'utf8')));
+  const good = { ...kuga.start, encryptDb: true, slots: { ...kuga.start.slots, public: 'alb' as const, 'app-c': 'ec2' as const, 'data-c': 'rds-replica' as const } };
+  it('ALB・2台・リードレプリカ・暗号化で、どの月も◎を取れる', () => {
+    for (const m of kuga.months) expect(runMonth(kuga.profitPerVisit, m, good, { '0': 'promote' }).grade, `month ${m.month}`).toBe('best');
+  });
+  it('最初の構成のままでは、どの月も◎にならない', () => {
+    for (const m of kuga.months) expect(runMonth(kuga.profitPerVisit, m, kuga.start).grade).not.toBe('best');
+  });
+});

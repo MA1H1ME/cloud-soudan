@@ -1,0 +1,81 @@
+# 久我さん（オンライン英会話の予約サービス）の運用シム。速さ最優先。
+# 読み込みの多い集計（リードレプリカ）と、保存データの暗号化を学ぶ。金額・訪問数・処理能力はゲーム内の値。
+customerId: kuga
+profitPerVisit: 12
+contractFee: 40000
+priority: performance
+request:
+  pitch: オンライン英会話の予約サービスを運営しています。予約画面が重いと、生徒さんがすぐ離れてしまうんです。速さを一番に考えてもらえますか。
+  after: { customerId: kashiwagi, month: 3 }
+start:
+  slots: { public: null, app-a: ec2, app-c: null, data-a: rds, data-c: null }
+  backup: true
+  autoScaling: false
+  encryptDb: false
+  dbPublic: false
+  dbSgOpen: false
+comments:
+  best: 予約画面がずっと軽いと、生徒さんからも好評です。助かりました
+  good: おおむね快適でした。1つだけ気になる点があります
+  fair: 重い日があって、問い合わせが増えてしまいました
+  fail: これでは生徒さんが離れてしまいます。急いで見直してください
+hearing:
+  opening: 予約画面が重いと、生徒さんがすぐ離れてしまうんです。予算は月4万5千円まででお願いします。
+  maxQuestions: 4
+  requirements:
+    - { id: budget, check: budget, given: true, label: '予算：月 ¥45,000 まで', unknown: '予算' }
+    - { id: peak, check: peak, label: 'アクセスのピーク：新学期キャンペーンで約2倍', unknown: 'アクセスのピーク：未確認' }
+    - { id: reads, check: reads, label: '月末に講師ごとの集計（3日間）で、データベースの読み込みが増える', unknown: 'データベースの使われ方：未確認' }
+    - { id: encryption, check: encryption, label: '受講生の個人情報と支払い記録を暗号化する（取引先の審査がある）', unknown: '預かる情報の扱い：未確認' }
+    - { id: data, check: data, label: '予約の記録は必ず残す', unknown: '失ってはいけないデータ：未確認' }
+  questions:
+    - id: q-peak
+      text: アクセスが増える時期はありますか？
+      answer: 8日から新学期キャンペーンをやります。いつもの倍は来ると思います。
+      reveals: peak
+    - id: q-report
+      text: データベースを重く使う作業はありますか？
+      answer: 月末に、講師ごとのレッスン数を集計しています。3日ほどかかって、その間は予約画面も重くなるんです。
+      reveals: reads
+    - id: q-audit
+      text: 預かっている情報と、審査の予定を教えてください。
+      answer: 受講生の住所と支払いの記録があります。今月、提携先の審査で「保存データの暗号化」を確認されます。
+      reveals: encryption
+    - id: q-data
+      text: 絶対に失いたくないものは何ですか？
+      answer: 予約の記録です。講師と生徒の両方に迷惑がかかります。
+      reveals: data
+    - id: q-teacher
+      text: 講師は何人いますか？
+      answer: 30人ほどです。…それは構成に関係ありますか？
+    - id: q-color
+      text: サイトのデザインで、こだわっている点はありますか？
+      answer: 青が好きです。でも、今日はその話ではないですよね。
+months:
+  - month: 1
+    visitsPerDay: 900
+    budget: 45000
+    uptimeTarget: 0.98
+    brief: 新学期キャンペーンが始まります。月末には講師ごとの集計もあります。今月は提携先の審査もあるので、よろしくお願いします
+    events:
+      - { day: 8, type: spike, label: 新学期キャンペーン, factor: 2, days: 2 }
+      - { day: 18, type: encryption-audit, label: 提携先の審査（保管時の暗号化） }
+      - { day: 25, type: read-surge, label: 月末の講師別集計, days: 3 }
+  - month: 2
+    visitsPerDay: 1200
+    budget: 50000
+    uptimeTarget: 0.99
+    brief: 生徒さんが増えてきました。止まると予約が取れなくなるので、稼働率は99%以上でお願いします。20日には雑誌で紹介されます
+    events:
+      - { day: 12, type: db-failure, label: データベースの障害 }
+      - { day: 20, type: spike, label: 雑誌で紹介, factor: 2.2, days: 2 }
+      - { day: 27, type: read-surge, label: 月末の講師別集計, days: 3 }
+  - month: 3
+    visitsPerDay: 1500
+    budget: 60000
+    uptimeTarget: 0.99
+    brief: 海外の講師も増えて、24時間止められなくなりました。集計も続けます。サイトを外から探られている気配もあります
+    events:
+      - { day: 10, type: az-outage, label: AZ-a の障害 }
+      - { day: 15, type: probe, label: データベースへの不審なアクセス }
+      - { day: 24, type: read-surge, label: 月末の講師別集計, days: 3 }

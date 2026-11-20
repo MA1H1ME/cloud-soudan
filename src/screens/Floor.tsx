@@ -237,7 +237,7 @@ export function Floor() {
   useEffect(() => {
     if (!company) go({ name: 'title' });
   }, [company]);
-  // 本編の3人の契約をすべて終えたら、一度だけクリア画面を出す
+  // 本編のお客さん全員の契約を終えたら、一度だけクリア画面を出す
   const storyDone = content.sim.length > 0 && content.sim.every((s) => state.accepted.includes(s.customerId) && !racks.some((r) => r.id === s.customerId));
   useEffect(() => {
     if (storyDone && !state.endingSeen) go({ name: 'ending' });
