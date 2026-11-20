@@ -18,6 +18,7 @@ import { Senpai, SenpaiLine } from '../components/Senpai';
 import { isStory, jobFor, nameFor, simFor } from '../jobs';
 import { bgm, sfx } from '../sound';
 import { ACHIEVEMENTS, doneIds } from '../achievements';
+import { CountUp, Settlement } from '../components/Settlement';
 
 const SECONDS_PER_DAY = 0.5;
 const W = 288, H = 300;
@@ -194,6 +195,11 @@ export function Floor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.income]);
 
+  // 決算が出たら、時間を止める
+  useEffect(() => {
+    if (state.pendingSettlement) { setSpeed(0); sfx.coin(); }
+  }, [state.pendingSettlement]);
+
   // 人物のひとこと（タップで出て、3秒で消える）
   useEffect(() => {
     if (!talk) return;
@@ -311,7 +317,7 @@ export function Floor() {
     <div className="mx-auto flex h-dvh max-w-md flex-col overflow-hidden bg-slate-900">
       <header className="flex shrink-0 items-center justify-between px-3 py-1.5 text-sm text-white" style={{ background: '#1b2333', fontFamily: MONO }}>
         <span>{calendar(state.clock).label}</span>
-        <span className="font-bold text-yellow-300">{yen(company.cash)}</span>
+        <CountUp value={company.cash} className={`font-bold ${company.cash < 0 ? 'text-red-400' : 'text-yellow-300'}`} />
         <span className="text-yellow-300" aria-label={`会社のランク ${RANKS[rank]!.name}`}>{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>
         <button type="button" onClick={() => { setSpeed(0); setMenu(true); }} aria-label="メニュー" className="-my-2 -mr-2 h-11 w-11 text-lg text-white">☰</button>
       </header>
@@ -538,6 +544,11 @@ export function Floor() {
           ))}
         </nav>
       </div>
+
+      {state.pendingSettlement && !blockingRack && !outcome && celebrate === null && !isBankrupt(company.cash) && (
+        <Settlement ledger={state.ledger} from={state.pendingSettlement.from} to={state.pendingSettlement.to} cash={company.cash}
+          onClose={() => { sfx.click(); state.closeSettlement(); }} />
+      )}
 
       {isBankrupt(company.cash) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 px-6" role="dialog" aria-modal="true" aria-label="倒産">

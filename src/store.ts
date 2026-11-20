@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { conceptById, content, ruleById } from './content';
-import { MAIL_DAYS, jobFor, mailsForDay, referralId, simFor } from './jobs';
+import { MAIL_DAYS, jobFor, mailsForDay, nameFor, referralId, simFor } from './jobs';
 import { addDays, enqueue, gameDate, INTERVAL_DAYS, onReviewAnswered, pickDueReviews, type ReviewItem } from './engine/review';
 import { DAYS, runMonth, type Grade, type MonthResult } from './sim/engine';
 import { verify } from './sim/verify';
@@ -46,6 +46,10 @@ export interface CustomerSave {
 export type Phase = 'hearing' | 'design' | 'build' | 'verify' | 'operate';
 
 export interface Company { name: string; cash: number }
+
+export interface LedgerEntry { day: number; amount: number; label: string }
+const LEDGER_MAX = 300;
+const appendLedger = (ledger: LedgerEntry[] | undefined, ...entries: LedgerEntry[]) => [...(ledger ?? []), ...entries.filter((e) => e.amount !== 0)].slice(-LEDGER_MAX);
 
 export { STAFF, GEAR, GEAR_IDS, PAYDAY, START_CASH, START_RACKS, MAX_RACKS, INTEREST_RATE, BANKRUPT_LIMIT, REBUILD_CASH, payroll, rackPrice, isBankrupt, salesFeeMult, salesMailBonus } from './economy';
 export type { StaffKind, StaffLevels } from './economy';
@@ -107,6 +111,11 @@ interface SaveState {
   /** フロアに戻ったときに出す入金の知らせ（一度出したら消す） */
   income: string | null;
   notifyIncome: (text: string | null) => void;
+  /** お金の出入り（会社の暦の日・金額・内容）。決算の画面で使う */
+  ledger: LedgerEntry[];
+  /** まだ見ていない決算（給料日に、それまでの30日分をまとめる） */
+  pendingSettlement: { from: number; to: number } | null;
+  closeSettlement: () => void;
   /** 祝った実績（古いセーブでは未設定。最初に開いたときに、いま達成済みのものを静かに記録する） */
   achieved?: string[];
   setAchieved: (ids: string[]) => void;
@@ -207,10 +216,14 @@ export const useSave = create<SaveState>()(
           // 30日ごとに給料を払う
           const paydays = Math.floor((day - 1) / PAYDAY) - Math.floor((st.clock - 1) / PAYDAY);
           const paid = st.company && paydays > 0 ? settlePayday(st.company.cash, st.staff, paydays) : null;
+          // 給料日には、それまでの30日分の決算を出す
+          const payday = paydays > 0 ? Math.floor((day - 1) / PAYDAY) * PAYDAY + 1 : 0;
           set({
             clock: day, mailLog,
             company: st.company && paid ? { ...st.company, cash: paid.cash } : st.company,
             lastPay: paid && paid.salary + paid.interest > 0 ? { day, amount: paid.salary, interest: paid.interest } : st.lastPay,
+            ledger: paid ? appendLedger(st.ledger, { day: payday, amount: -paid.salary, label: '社員の給料' }, { day: payday, amount: -paid.interest, label: '借入の利息' }) : st.ledger,
+            pendingSettlement: payday > 1 && st.company ? { from: payday - PAYDAY, to: payday } : st.pendingSettlement,
           });
         },
         acceptMail: (id) => {
@@ -225,7 +238,7 @@ export const useSave = create<SaveState>()(
           const price = rackPrice(st.racks);
           if (!st.company || st.racks >= MAX_RACKS || st.company.cash < price) return;
           sfx.coin();
-          set({ racks: st.racks + 1, company: { ...st.company, cash: st.company.cash - price } });
+          set({ racks: st.racks + 1, company: { ...st.company, cash: st.company.cash - price }, ledger: appendLedger(st.ledger, { day: st.clock, amount: -price, label: 'ラックの増設' }) });
         },
         customers: {},
         accepted: [],
@@ -253,6 +266,9 @@ export const useSave = create<SaveState>()(
         income: null,
         notifyIncome: (text) => set({ income: text }),
         setAchieved: (ids) => set({ achieved: ids }),
+        ledger: [],
+        pendingSettlement: null,
+        closeSettlement: () => set({ pendingSettlement: null }),
         exams: [],
         finishExam: (score, failedConceptIds, firedRuleIds) => {
           const st = get();
@@ -275,7 +291,7 @@ export const useSave = create<SaveState>()(
           const s = STAFF[kind];
           if (!st.company || st.staff[kind] > 0 || st.company.cash < s.hire || st.revenue < s.rank) return;
           sfx.fanfare();
-          set({ staff: { ...st.staff, [kind]: 1 }, company: { ...st.company, cash: st.company.cash - s.hire } });
+          set({ staff: { ...st.staff, [kind]: 1 }, company: { ...st.company, cash: st.company.cash - s.hire }, ledger: appendLedger(st.ledger, { day: st.clock, amount: -s.hire, label: `雇用（${s.title}）` }) });
         },
         train: (kind) => {
           const st = get();
@@ -283,22 +299,22 @@ export const useSave = create<SaveState>()(
           const next = st.staff[kind] + 1;
           if (!st.company || st.staff[kind] < 1 || next > s.maxLevel || st.company.cash < s.train[next]!) return;
           sfx.fanfare();
-          set({ staff: { ...st.staff, [kind]: next }, company: { ...st.company, cash: st.company.cash - s.train[next]! } });
+          set({ staff: { ...st.staff, [kind]: next }, company: { ...st.company, cash: st.company.cash - s.train[next]! }, ledger: appendLedger(st.ledger, { day: st.clock, amount: -s.train[next]!, label: `研修（${s.title}）` }) });
         },
         buyGear: (id) => {
           const st = get();
           const g = GEAR[id];
           if (!st.company || !g || st.gear.includes(id) || st.company.cash < g.price || st.revenue < g.rank) return;
           sfx.coin();
-          set({ gear: [...st.gear, id], company: { ...st.company, cash: st.company.cash - g.price } });
+          set({ gear: [...st.gear, id], company: { ...st.company, cash: st.company.cash - g.price }, ledger: appendLedger(st.ledger, { day: st.clock, amount: -g.price, label: `設備（${g.title}）` }) });
         },
         rebuild: () => {
           const st = get();
           if (!st.company) return;
-          set({ staff: { ops: 0, sales: 0 }, company: { ...st.company, cash: REBUILD_CASH }, lastPay: null });
+          set({ staff: { ops: 0, sales: 0 }, company: { ...st.company, cash: REBUILD_CASH }, lastPay: null, ledger: appendLedger(st.ledger, { day: st.clock, amount: REBUILD_CASH - st.company.cash, label: '再建（資金の立て直し）' }) });
         },
         importSave: (data) => set({ ...data }),
-        newGame: (name) => set({ achieved: [], exams: [], reputation: START_REPUTATION, staff: { ops: 0, sales: 0 }, gear: [], encountered: [], learned: [], revenue: 0, endingSeen: false, seenRank: 0, lastPay: null, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
+        newGame: (name) => set({ ledger: [], pendingSettlement: null, achieved: [], exams: [], reputation: START_REPUTATION, staff: { ops: 0, sales: 0 }, gear: [], encountered: [], learned: [], revenue: 0, endingSeen: false, seenRank: 0, lastPay: null, company: { name, cash: START_CASH }, clock: 1, racks: START_RACKS, mailLog: [], mailStatus: {}, customers: {}, accepted: [], active: null, review: {}, seenRules: [], tips: [] }),
         answerSpot: (spotId, passed, firedRuleIds, practice) => {
           const spot = content.spots.find((x) => x.id === spotId);
           const st = get();
@@ -312,6 +328,7 @@ export const useSave = create<SaveState>()(
             seenRules,
             review: { ...st.review, [spot.conceptId]: item },
             company: st.company && passed ? { ...st.company, cash: st.company.cash + SPOT_REWARD } : st.company,
+            ledger: passed ? appendLedger(st.ledger, { day: st.clock, amount: SPOT_REWARD, label: 'スポット案件の報酬' }) : st.ledger,
           });
         },
         setSlot: (customerId, slot, part) =>
@@ -354,7 +371,13 @@ export const useSave = create<SaveState>()(
           }
           set({ reputation: after, mailLog, income: [get().income, ...notes].filter(Boolean).join('　') || null });
           if (company && fee > 0) sfx.coin();
-          if (company && fee > 0) set({ company: { ...company, cash: company.cash + fee + (grade === 'best' ? BEST_BONUS : 0) }, revenue: get().revenue + fee });
+          if (company && fee > 0) {
+            set({
+              company: { ...company, cash: company.cash + fee + (grade === 'best' ? BEST_BONUS : 0) },
+              revenue: get().revenue + fee,
+              ledger: appendLedger(get().ledger, { day: get().clock, amount: fee, label: `契約料（${nameFor(customerId)}さん）` }, { day: get().clock, amount: grade === 'best' ? BEST_BONUS : 0, label: '◎のボーナス' }),
+            });
+          }
           const save = customerSave(get(), customerId);
           const result = sim && save ? runningResult(sim, save) : undefined;
           if (result) {

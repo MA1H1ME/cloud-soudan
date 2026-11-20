@@ -35,6 +35,8 @@ const out = process.env.E2E_OUT;
       }
       break;
     }
+    // 給料日と重なると決算が出るので、先に閉じる
+    if (await page.getByRole('dialog', { name: '決算' }).count()) await page.getByText('次の30日へ').click();
     await page.getByText(/月次レポートを読む/).click(); await ok();
     const grade = await page.locator('.stamp').getAttribute('aria-label');
     console.log(who, 'grade', grade);
